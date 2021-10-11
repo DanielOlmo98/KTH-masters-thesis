@@ -22,8 +22,17 @@ for file in file_list:
 image = images[0]
 # for image in images:
 plt.imshow(image, cmap='gray')
+plt.title("Before")
 plt.show()
-wavelet_exp(image)
+
+image = wavelet_exp(image, plot=True)
 image = sitk_noisefilter(image)
+
 plt.imshow(image, cmap='gray')
+plt.title("After")
+plt.show()
+
+noise = images[0] - image
+plt.imshow(noise, cmap='gray')
+plt.title("Noise")
 plt.show()

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from utils import binarize
 
 
-def sitk_noisefilter(img):
+def sitk_noisefilter(img, plot=False):
     img_sitk = sitk.GetImageFromArray(img)
     noise_filter = sitk.NoiseImageFilter()
     out = noise_filter.Execute(img_sitk)
@@ -23,15 +23,16 @@ def sitk_noisefilter(img):
 
     gauss_filter = sitk.DiscreteGaussianImageFilter()
 
-    denoised = sitk.GetArrayFromImage(gauss_filter.Execute(sitk.GetImageFromArray(denoised)))
+    # denoised = sitk.GetArrayFromImage(gauss_filter.Execute(sitk.GetImageFromArray(denoised)))
 
-    fig = plt.figure(figsize=(6, 12))
-    titles = ['Image', 'Noise', 'Denoised Image']
-    for i, a in enumerate([img, noise, denoised]):
-        ax = fig.add_subplot(3, 1, i + 1)
-        ax.imshow(a, interpolation="nearest", cmap='gray', vmin=a.min(), vmax=a.max())
-        ax.set_title(titles[i], fontsize=10)
-    fig.tight_layout()
-    plt.show()
+    if plot:
+        fig = plt.figure(figsize=(6, 12))
+        titles = ['Image', 'Noise', 'Denoised Image']
+        for i, a in enumerate([img, noise, denoised]):
+            ax = fig.add_subplot(3, 1, i + 1)
+            ax.imshow(a, interpolation="nearest", cmap='gray', vmin=a.min(), vmax=a.max())
+            ax.set_title(titles[i], fontsize=10)
+        fig.tight_layout()
+        plt.show()
 
     return denoised
