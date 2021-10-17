@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils import binarize
 
-
 def sitk_noisefilter(img, plot=False):
     img_sitk = sitk.GetImageFromArray(img)
     noise_filter = sitk.NoiseImageFilter()
