@@ -10,10 +10,8 @@ from noise_filtering.dct import dct_exp
 from utils import get_project_root
 
 
-# TODO:
-#  implement SRAD ,
-#  total variation optimization problem denoise,
-
+# TODO: implement SRAD
+# TODO: total variation optimization problem denoise
 def load_images(path):
     file_list = os.listdir(path)
     images = []

@@ -23,5 +23,10 @@ def get_project_root():
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def plot_image_g(img):
+    plt.imshow(img, cmap='gray')
+    plt.show()
+
+
 if __name__ == '__main__':
     print(get_project_root())
