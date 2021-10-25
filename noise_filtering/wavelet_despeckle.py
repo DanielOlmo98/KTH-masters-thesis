@@ -5,6 +5,7 @@ from noise_filtering.main import load_images
 import cv2
 import numpy as np
 import odl
+from utils import plot_image_g
 
 """
 Wavelet DecompositionYBased Speckle
@@ -18,6 +19,7 @@ http://dx.doi.org/10.1097/JCE.0000000000000300
 # Modified from:
 # https://www.researchgate.net/publication/332574579_Image_Processing_Course_Project_Image_Filtering_with_Wiener_Filter_and_Median_Filter
 def HMF(wavelet_coeffs):
+    result = []
     for arr in wavelet_coeffs:
         x_size, y_size = np.shape(arr)
         temp = []
@@ -45,17 +47,20 @@ def HMF(wavelet_coeffs):
                 data_final[i][j] = np.median(np.array([diag, cross, center]))
                 temp = []
 
-        plt.imshow(arr, cmap='gray')
-        plt.show()
-        plt.imshow(data_final, cmap='gray')
-        plt.show()
-    return
+        plot_image_g(arr)
+        plot_image_g(data_final)
+
+        result.append(data_final)
+    return result
 
 
 def wavelet_despeckle(img):
     coeffs2 = pywt.dwt2(img, 'haar')
     LL, (LH, HL, HH) = coeffs2
-    HMF((LH, HL, HH))
+    res = HMF((LH, HL, HH))
+    recopn_img = pywt.idwt2((LL, (res[0], res[1], res[2])), 'haar')
+    plot_image_g(img)
+    plot_image_g(recopn_img)
     # HMF(img)
 
 
