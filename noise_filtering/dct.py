@@ -1,7 +1,7 @@
 from scipy.fft import dct, dctn
 import matplotlib.pyplot as plt
 import numpy as np
-from utils import normalize
+from utils import normalize_0_1
 
 
 def dct2(image, inverse=False):
@@ -15,7 +15,7 @@ def dct_exp(img, plot=False):
     #     sitk.Threshold(sitk.GetImageFromArray(dct_image[400:,600:]), lower=0, upper=100))
 
     recon_img = dct2(dct_image, inverse=True)
-    norml = normalize(dct_image)
+    norml = normalize_0_1(dct_image)
     if plot:
         plt.imshow(img, cmap='gray')
         plt.title("Original")

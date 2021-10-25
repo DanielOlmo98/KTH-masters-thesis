@@ -3,7 +3,7 @@ from odl.discr.diff_ops import Gradient, Laplacian, Divergence
 import odl
 import matplotlib.pyplot as plt
 import numpy as np
-from utils import get_project_root, plot_image_g, normalize
+from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1
 from noise_filtering.main import load_images
 from scipy.stats import variation
 
@@ -58,20 +58,51 @@ def numeric_solve(image, iter, d_t, plot):
     I = [image]
     # d_t = 0.1
     for n in range(iter):
-        d_n = pde(I[n], space)
-        d_n = normalize(d_n)
-        I.append(normalize(I[n] + 0.25 * d_t * d_n))
-        if plot and n % 10 == 0:
-            plot_image_g(I[n])
-            plot_image_g(d_n)
+        d_n = np.abs(pde(I[n], space).data)
+        d_n = normalize_0_1(d_n)
+
+        # thresh = 0.05
+        # d_n_bool = np.logical_or(d_n < -thresh, d_n > thresh)
+        # d_n = np.where(d_n_bool, d_n, 0)
+
+        I.append((I[n] + 0.25 * d_t * d_n) + epsilon)
+        if plot and n % 25 == 0:
+            fig = plt.figure(figsize=(6, 10))
+            ax1 = fig.add_subplot(211)
+            ax2 = fig.add_subplot(212, projection='3d')
+            plot_image_g(I[n], ax=ax1)
+            heightmap(d_n, ax=ax2)
+            plt.show()
+            # plot_image_g(d_n)
+
     return I
+
+
+def heightmap(array, ax=None):
+    height, width = array.shape
+    x = np.arange(0, height, 1)
+    y = np.arange(0, width, 1)
+    X, Y = np.meshgrid(x, y)
+    Z = np.transpose(array.data)
+
+    if ax is None:
+        fig = plt.figure(figsize=(6, 6))
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot_surface(X, Y, Z, cmap='hot')
+        plt.show()
+        return
+    else:
+        ax.plot_surface(X, Y, Z, cmap='hot')
+        return ax
 
 
 if __name__ == '__main__':
     path = get_project_root() + '/image/'
     images = load_images(path)
     image = images[0]
+    image = image[130:300, 200:450]
+
     # epsilon = 10e-10
     # image += epsilon
     # ICOV(image)
-    numeric_solve(image, 100, 0.1, plot=True)
+    numeric_solve(image, 100, 0.05, plot=True)
