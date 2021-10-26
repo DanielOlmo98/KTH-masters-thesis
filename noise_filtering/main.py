@@ -10,7 +10,8 @@ from noise_filtering.dct import dct_exp
 from utils import get_project_root
 
 
-# TODO: implement SRAD
+# TODO: debug SRAD
+# TODO: implement CSRAD (Coefficient-Tracking Speckle Reducing Anisotropic Diffusion)
 # TODO: total variation optimization problem denoise
 def load_images(path):
     file_list = os.listdir(path)

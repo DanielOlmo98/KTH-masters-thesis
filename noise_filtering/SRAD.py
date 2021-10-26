@@ -6,6 +6,8 @@ import numpy as np
 from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1
 from noise_filtering.main import load_images
 from scipy.stats import variation
+from scipy.ndimage.filters import gaussian_filter
+
 
 
 def ICOV(image, space):
@@ -38,6 +40,17 @@ def diffusion_coef(image, space):
     q = ICOV(image, space)
     q_0 = ICOV_0(image)
     c = 1 / (1 + ((q ** 2 - q_0 ** 2) / ((q_0 ** 2) * (1 + (q_0 ** 2)))))
+    # heightmap(c)
+
+    # c = normalize_neg1_to_1(c)
+
+    # thresh = 0.3
+    # zero_height = 0.75
+    # c_bool = np.logical_or(c.data < zero_height-thresh, c.data > zero_height+thresh)
+    # c.data[~c_bool] = zero_height
+
+    # heightmap(c)
+
     return c
 
 
@@ -45,9 +58,20 @@ def pde(image, space):
     div_op = Divergence(range=space)
     gradient_op = Gradient(space)
     diff_coef = diffusion_coef(image, space)
-    # f = div_op.domain.element([diff_coef, grad_magnitude])
-    d_n = div_op(diff_coef * gradient_op(image))
-    return d_n
+    grad_img = gradient_op(image)
+
+    for grad_part in grad_img.parts:
+        thresh = -5
+        grad_part.data[grad_part.data < thresh] = 0
+        # g_bool = np.logical_or(grad_part.data < -thresh, grad_part.data > thresh)
+        # grad_part.data[~g_bool] = -5
+
+    d_n = div_op(diff_coef * grad_img)
+
+    blurred_d_n = gaussian_filter(d_n.data, sigma=0.5)
+    # heightmap(d_n)
+    # heightmap(blurred_d_n)
+    return blurred_d_n
 
 
 def numeric_solve(image, iter, d_t, plot):
@@ -75,7 +99,7 @@ def numeric_solve(image, iter, d_t, plot):
             plt.show()
             # plot_image_g(d_n)
 
-    return I
+    return I[-1]
 
 
 def heightmap(array, ax=None):
@@ -105,4 +129,5 @@ if __name__ == '__main__':
     # epsilon = 10e-10
     # image += epsilon
     # ICOV(image)
-    numeric_solve(image, 100, 0.05, plot=True)
+    res_img = numeric_solve(image, 100, 0.05, plot=True)
+    plot_image_g(res_img)
