@@ -9,30 +9,33 @@ from scipy.stats import variation
 from scipy.ndimage.filters import gaussian_filter
 
 
-
 def ICOV(image, space):
     gradient_op = Gradient(space)
-    grad_x, grad_y = gradient_op(image).parts
-    grad_magnitude = np.sqrt(grad_x ** 2 + grad_y ** 2)
+    grad_magnitude = np.squeeze(np.linalg.norm(gradient_op(image), keepdims=True, axis=0))
     laplacian_op = Laplacian(space)
     laplacian = laplacian_op(image)
-    numerator = 0.5 * ((grad_magnitude / image) ** 2) - 0.0625 * (laplacian ** 2)
+    numerator = (0.5 * (grad_magnitude ** 2)) - (0.0625 * (laplacian ** 2))
     denominator = (image + 0.25 * laplacian)
     q = np.sqrt(np.abs(numerator)) / denominator
 
     # plot_image_g(laplacian)
-    # plot_image_g(grad_x)
-    # plot_image_g(grad_y)
     # plot_image_g(grad_magnitude)
     # plot_image_g(q)
+
+    # heightmap(q, title="ICOV")
 
     return q
 
 
 def ICOV_0(image):
+    width, height = image.shape
+    patch_size = 30
+    x, y = width//2, height//2
+    image = image[x:x+patch_size, y:y+patch_size]
     variance = np.var(image)
     mean = np.mean(image)
     q_0 = np.sqrt(variance) / mean
+
     return q_0
 
 
@@ -40,6 +43,8 @@ def diffusion_coef(image, space):
     q = ICOV(image, space)
     q_0 = ICOV_0(image)
     c = 1 / (1 + ((q ** 2 - q_0 ** 2) / ((q_0 ** 2) * (1 + (q_0 ** 2)))))
+
+    # plot_image_g(c)
     # heightmap(c)
 
     # c = normalize_neg1_to_1(c)
@@ -49,7 +54,7 @@ def diffusion_coef(image, space):
     # c_bool = np.logical_or(c.data < zero_height-thresh, c.data > zero_height+thresh)
     # c.data[~c_bool] = zero_height
 
-    # heightmap(c)
+    # heightmap(c, title="c")
 
     return c
 
@@ -69,8 +74,8 @@ def pde(image, space):
     d_n = div_op(diff_coef * grad_img)
 
     blurred_d_n = gaussian_filter(d_n.data, sigma=0.5)
-    # heightmap(d_n)
-    # heightmap(blurred_d_n)
+    # heightmap(d_n, title="pde")
+    # heightmap(blurred_d_n, title='blurred')
     return blurred_d_n
 
 
@@ -102,7 +107,7 @@ def numeric_solve(image, iter, d_t, plot):
     return I[-1]
 
 
-def heightmap(array, ax=None):
+def heightmap(array, ax=None, title=None):
     height, width = array.shape
     x = np.arange(0, height, 1)
     y = np.arange(0, width, 1)
@@ -113,10 +118,14 @@ def heightmap(array, ax=None):
         fig = plt.figure(figsize=(6, 6))
         ax = fig.add_subplot(111, projection='3d')
         ax.plot_surface(X, Y, Z, cmap='hot')
+        if title is not None:
+            ax.set_title(title)
         plt.show()
         return
     else:
         ax.plot_surface(X, Y, Z, cmap='hot')
+        if title is not None:
+            ax.set_title(title)
         return ax
 
 
@@ -124,7 +133,7 @@ if __name__ == '__main__':
     path = get_project_root() + '/image/'
     images = load_images(path)
     image = images[0]
-    image = image[130:300, 200:450]
+    # image = image[130:300, 200:450]
 
     # epsilon = 10e-10
     # image += epsilon
