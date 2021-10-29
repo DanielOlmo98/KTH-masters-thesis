@@ -39,9 +39,9 @@ def ICOV_0(image):
     return q_0
 
 
-def diffusion_coef(image, space):
+def diffusion_coef(image, space, step, step_size):
     q = ICOV(image, space)
-    q_0 = ICOV_0(image)
+    q_0 = np.exp(-step_size * step / 6)
     c = 1 / (1 + ((q ** 2 - q_0 ** 2) / ((q_0 ** 2) * (1 + (q_0 ** 2)))))
 
     # plot_image_g(c)
@@ -59,10 +59,10 @@ def diffusion_coef(image, space):
     return c
 
 
-def pde(image, space):
+def pde(image, space, n, step_size):
     div_op = Divergence(range=space)
     gradient_op = Gradient(space)
-    diff_coef = diffusion_coef(image, space)
+    diff_coef = diffusion_coef(image, space, step=n, step_size=step_size)
     grad_img = gradient_op(image)
 
     for grad_part in grad_img.parts:
@@ -87,7 +87,7 @@ def numeric_solve(image, iter, d_t, plot):
     I = [image]
     # d_t = 0.1
     for n in range(iter):
-        d_n = np.abs(pde(I[n], space).data)
+        d_n = np.abs(pde(I[n], space, n, d_t).data)
         d_n = normalize_0_1(d_n)
 
         # thresh = 0.05
@@ -138,5 +138,8 @@ if __name__ == '__main__':
     # epsilon = 10e-10
     # image += epsilon
     # ICOV(image)
-    res_img = numeric_solve(image, 100, 0.05, plot=True)
+    res_img = numeric_solve(image, 200, 0.1, plot=True)
+    plot_image_g(image)
     plot_image_g(res_img)
+    plt.imshow(res_img, cmap='gray', vmin=0.05, vmax=0.9)
+    plt.show()
