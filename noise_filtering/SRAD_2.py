@@ -1,19 +1,16 @@
-from odl import uniform_discr
-from odl.discr.diff_ops import Gradient, Laplacian, Divergence
-import odl
 import matplotlib.pyplot as plt
 import numpy as np
-from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1
+from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1, heightmap
 from noise_filtering.main import load_images
 from scipy.stats import variation
+from scipy.ndimage.filters import gaussian_filter
 
 
-def SRAD(img, step_size, step):
+def discretized_SRAD(img, step_size, step):
     width, height = img.shape
     c_i_j = np.zeros_like(img)
     q0 = np.exp(-step_size * step / 6)  # speckle scale function
 
-    print('l1')
     for i in range(width):
         for j in range(height):
             # 4 Neighbourhood in cardinal directions (center, north, east, south, west)
@@ -31,13 +28,12 @@ def SRAD(img, step_size, step):
             lapl = img_E + img_W + img_N + img_S - 4 * img_C
 
             # diffusion coeff
-            q = np.sqrt(
-                (0.5 * (grad_magn / img_C) ** 2 - 0.0625 * (lapl / img_C) ** 2) / (1 + 0.25 * lapl / img_C) ** 2)
-            c_i_j[i, j] = 1 / (1 + (q ** 2 - q0 **2) / ((q0 ** 2)* (1 + q0 **2)))
-
-    print('l2')
+            q = np.sqrt(np.abs(
+                (0.5 * (grad_magn / img_C) ** 2 - 0.0625 * (lapl / img_C) ** 2))) / ((1 + 0.25 * lapl / img_C) ** 2)
+            c_i_j[i, j] = 1 / (1 + ((q ** 2 - q0 ** 2) / ((q0 ** 2) * (1 + (q0 ** 2)))))
 
     res = np.zeros_like(c_i_j)
+    d_n = np.zeros_like(c_i_j)
     for i in range(width):
         for j in range(height):
             # 4 Neighbourhood in cardinal directions (center, north, east, south, west)
@@ -53,25 +49,34 @@ def SRAD(img, step_size, step):
             c_S = c_i_j[i, j - 1] if height != 0 else c_i_j[i, j]
             c_W = c_i_j[i - 1, j] if width != 0 else c_i_j[i, j]
 
-            d = c_E*(img_E - img_C) + c_C*(img_W - img_C) + c_N*(img_N - img_C) + c_C*(img_S - img_C)
-
+            d = c_E * (img_E - img_C) + c_C * (img_W - img_C) + c_N * (img_N - img_C) + c_C * (img_S - img_C)
+            d_n[i, j] = d
             res[i, j] = img_C + 0.25 * step_size * d
 
-    return res
+    return res, d_n
+
+
+def SRAD_solver(img, steps, step_size, plot=False):
+    img_n = img
+    for n in range(steps):
+        img_n, d_n = discretized_SRAD(img_n, step_size=step_size, step=n)
+        if n % 10 == 0 and plot:
+            img_title = 'Iteration number: ' + str(n)
+            # heightmap(d_n)
+            # plot_image_g(img_n, title=img_title, overlay_img=d_n)
+            plot_image_g(img_n, title=img_title)
+
+    return img_n
 
 
 if __name__ == '__main__':
     path = get_project_root() + '/image/'
     images = load_images(path)
     image = images[0]
-    image = image[130:300, 200:450]
+    # image = image[130:300, 200:450]
 
     epsilon = 10e-10
     image += epsilon
-    steps = 10
-    img_n = image
-    for n in range(steps):
-        img_n = SRAD(img_n, step_size=0.05, step=n)
-        if n % 5 == 0:
-            plot_image_g(img_n)
-    print()
+
+    res = SRAD_solver(image, steps=100, step_size=0.05)
+    plot_image_g(res, title='Final SRAD 2')

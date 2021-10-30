@@ -3,10 +3,18 @@ from odl.discr.diff_ops import Gradient, Laplacian, Divergence
 import odl
 import matplotlib.pyplot as plt
 import numpy as np
-from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1
+from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1, heightmap
 from noise_filtering.main import load_images
 from scipy.stats import variation
 from scipy.ndimage.filters import gaussian_filter
+
+'''
+Speckle Reducing Anisotropic Diffusion (SRAD)
+https://ieeexplore.ieee.org/document/1097762
+https://www.mdpi.com/2072-4292/11/23/2768/htm
+https://www.researchgate.net/publication/221472052_Coefficient-Tracking_Speckle_Reducing_Anisotropic_Diffusion
+ 
+'''
 
 
 def ICOV(image, space):
@@ -28,10 +36,14 @@ def ICOV(image, space):
 
 
 def ICOV_0(image):
+    """
+    Wrong implementation, unused
+    """
+
     width, height = image.shape
     patch_size = 30
-    x, y = width//2, height//2
-    image = image[x:x+patch_size, y:y+patch_size]
+    x, y = width // 2, height // 2
+    image = image[x:x + patch_size, y:y + patch_size]
     variance = np.var(image)
     mean = np.mean(image)
     q_0 = np.sqrt(variance) / mean
@@ -95,7 +107,7 @@ def numeric_solve(image, iter, d_t, plot):
         # d_n = np.where(d_n_bool, d_n, 0)
 
         I.append((I[n] + 0.25 * d_t * d_n) + epsilon)
-        if plot and n % 25 == 0:
+        if plot and n % 50 == 0:
             fig = plt.figure(figsize=(6, 10))
             ax1 = fig.add_subplot(211)
             ax2 = fig.add_subplot(212, projection='3d')
@@ -105,28 +117,6 @@ def numeric_solve(image, iter, d_t, plot):
             # plot_image_g(d_n)
 
     return I[-1]
-
-
-def heightmap(array, ax=None, title=None):
-    height, width = array.shape
-    x = np.arange(0, height, 1)
-    y = np.arange(0, width, 1)
-    X, Y = np.meshgrid(x, y)
-    Z = np.transpose(array.data)
-
-    if ax is None:
-        fig = plt.figure(figsize=(6, 6))
-        ax = fig.add_subplot(111, projection='3d')
-        ax.plot_surface(X, Y, Z, cmap='hot')
-        if title is not None:
-            ax.set_title(title)
-        plt.show()
-        return
-    else:
-        ax.plot_surface(X, Y, Z, cmap='hot')
-        if title is not None:
-            ax.set_title(title)
-        return ax
 
 
 if __name__ == '__main__':
@@ -139,7 +129,5 @@ if __name__ == '__main__':
     # image += epsilon
     # ICOV(image)
     res_img = numeric_solve(image, 200, 0.1, plot=True)
-    plot_image_g(image)
-    plot_image_g(res_img)
-    plt.imshow(res_img, cmap='gray', vmin=0.05, vmax=0.9)
-    plt.show()
+    plot_image_g(image, title='Original')
+    plot_image_g(res_img, title='Final SRAD')
