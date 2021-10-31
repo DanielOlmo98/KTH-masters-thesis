@@ -3,7 +3,7 @@ from odl.discr.diff_ops import Gradient, Laplacian, Divergence
 import odl
 import matplotlib.pyplot as plt
 import numpy as np
-from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1, heightmap
+from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1, heightmap, symmetric_threshold
 from noise_filtering.main import load_images
 from scipy.stats import variation
 from scipy.ndimage.filters import gaussian_filter
@@ -56,8 +56,8 @@ def diffusion_coef(image, space, step, step_size):
     q_0 = np.exp(-step_size * step / 6)
     c = 1 / (1 + ((q ** 2 - q_0 ** 2) / ((q_0 ** 2) * (1 + (q_0 ** 2)))))
 
-    # plot_image_g(c)
-    # heightmap(c)
+    plot_image_g(c)
+    heightmap(c)
 
     # c = normalize_neg1_to_1(c)
 
@@ -76,19 +76,21 @@ def pde(image, space, n, step_size):
     gradient_op = Gradient(space)
     diff_coef = diffusion_coef(image, space, step=n, step_size=step_size)
     grad_img = gradient_op(image)
+    grad_img = normalize_neg1_to_1(grad_img)
 
-    for grad_part in grad_img.parts:
-        thresh = -5
-        grad_part.data[grad_part.data < thresh] = 0
-        # g_bool = np.logical_or(grad_part.data < -thresh, grad_part.data > thresh)
-        # grad_part.data[~g_bool] = -5
+    # for grad_part in grad_img.parts:
+    #     thresh = -5
+    #     grad_part.data[grad_part.data < thresh] = 0
+    #     # g_bool = np.logical_or(grad_part.data < -thresh, grad_part.data > thresh)
+    #     # grad_part.data[~g_bool] = -5
 
+    # heightmap(diff_coef)
     d_n = div_op(diff_coef * grad_img)
 
-    blurred_d_n = gaussian_filter(d_n.data, sigma=0.5)
+    # blurred_d_n = gaussian_filter(d_n.data, sigma=0.5)
     # heightmap(d_n, title="pde")
     # heightmap(blurred_d_n, title='blurred')
-    return blurred_d_n
+    return d_n
 
 
 def numeric_solve(image, iter, d_t, plot):
@@ -99,14 +101,17 @@ def numeric_solve(image, iter, d_t, plot):
     I = [image]
     # d_t = 0.1
     for n in range(iter):
-        d_n = np.abs(pde(I[n], space, n, d_t).data)
-        d_n = normalize_0_1(d_n)
+        d_n = pde(I[n], space, n, d_t).data
 
-        # thresh = 0.05
-        # d_n_bool = np.logical_or(d_n < -thresh, d_n > thresh)
-        # d_n = np.where(d_n_bool, d_n, 0)
+        d_n = normalize_neg1_to_1(d_n)
+        bool_borders = np.full_like(d_n, True, dtype='bool')
+        bool_borders[1:-1, 1:-1] = False
+        d_n[bool_borders] = epsilon
 
-        I.append((I[n] + 0.25 * d_t * d_n) + epsilon)
+        # d_n = symmetric_threshold(d_n, 0.05, zero_point=0, invert=True)
+        i_n = I[n] + 0.25 * d_t * d_n
+        i_n[i_n < 0] = epsilon
+        I.append(i_n)
         if plot and n % 50 == 0:
             fig = plt.figure(figsize=(6, 10))
             ax1 = fig.add_subplot(211)
@@ -123,11 +128,11 @@ if __name__ == '__main__':
     path = get_project_root() + '/image/'
     images = load_images(path)
     image = images[0]
-    # image = image[130:300, 200:450]
+    image = image[130:300, 200:450]
 
     # epsilon = 10e-10
     # image += epsilon
     # ICOV(image)
-    res_img = numeric_solve(image, 200, 0.1, plot=True)
+    res_img = numeric_solve(image, 100, 0.05, plot=True)
     plot_image_g(image, title='Original')
     plot_image_g(res_img, title='Final SRAD')

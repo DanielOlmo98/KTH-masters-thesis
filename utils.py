@@ -48,11 +48,11 @@ def plot_image_g(img, title=None, ax=None, overlay_img=None, alpha_overlay=0.5):
     else:
         ax.imshow(img, cmap='gray')
         if title is not None:
-            ax.title(title)
+            ax.set_title(title)
         return ax
 
 
-def heightmap(array, ax=None, title=None):
+def heightmap(array, ax=None, title=None, elev=None, azim=None):
     height, width = array.shape
     x = np.arange(0, height, 1)
     y = np.arange(0, width, 1)
@@ -63,12 +63,17 @@ def heightmap(array, ax=None, title=None):
         fig = plt.figure(figsize=(6, 6))
         ax = fig.add_subplot(111, projection='3d')
         ax.plot_surface(X, Y, Z, cmap='hot')
+        ax.view_init(elev=elev, azim=azim)
+
         if title is not None:
             ax.set_title(title)
+
         plt.show()
         return
     else:
         ax.plot_surface(X, Y, Z, cmap='hot')
+        ax.view_init(elev=elev, azim=azim)
+
         if title is not None:
             ax.set_title(title)
         return ax

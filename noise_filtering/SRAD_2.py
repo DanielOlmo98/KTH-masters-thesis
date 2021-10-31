@@ -46,8 +46,6 @@ def discretized_SRAD(img, step_size, step):
             c_C = c_i_j[i, j]
             c_N = c_i_j[i, j + 1] if j != height - 1 else c_i_j[i, j]
             c_E = c_i_j[i + 1, j] if i != width - 1 else c_i_j[i, j]
-            c_S = c_i_j[i, j - 1] if height != 0 else c_i_j[i, j]
-            c_W = c_i_j[i - 1, j] if width != 0 else c_i_j[i, j]
 
             d = c_E * (img_E - img_C) + c_C * (img_W - img_C) + c_N * (img_N - img_C) + c_C * (img_S - img_C)
             d_n[i, j] = d
@@ -78,5 +76,5 @@ if __name__ == '__main__':
     epsilon = 10e-10
     image += epsilon
 
-    res = SRAD_solver(image, steps=100, step_size=0.05)
+    res = SRAD_solver(image, steps=20, step_size=0.1)
     plot_image_g(res, title='Final SRAD 2')
