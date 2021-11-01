@@ -3,7 +3,7 @@ import SimpleITK as sitk
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.io import imread
-from skimage import color
+from skimage import color, img_as_float32
 
 
 def binarize(img):
@@ -34,6 +34,20 @@ def symmetric_threshold(img, threshold, zero_point=0, invert=True):
     else:
         img[d_n_bool] = zero_point
     return img
+
+
+def load_images(path=(get_project_root() + '/image/')):
+    file_list = os.listdir(path)
+    images = []
+    for file in file_list:
+        common_file_path = path + file
+        if not os.path.isfile(common_file_path):
+            continue
+
+        image = imread(common_file_path)
+        image = image[80:550, 80:720]
+        images.append(img_as_float32(color.rgb2gray(image)))
+    return images
 
 
 def plot_image_g(img, title=None, ax=None, overlay_img=None, alpha_overlay=0.5):

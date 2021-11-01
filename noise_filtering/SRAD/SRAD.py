@@ -125,8 +125,7 @@ def numeric_solve(image, iter, d_t, plot):
 
 
 if __name__ == '__main__':
-    path = get_project_root() + '/image/'
-    images = load_images(path)
+    images = load_images()
     image = images[0]
     image = image[130:300, 200:450]
 

@@ -1,12 +1,11 @@
-from setuptools import setup
-
 from setuptools import setup, Extension
 
-module = Extension ('PyRAD_SRAD', sources=['PyRAD_SRAD.pyx'])
+module1 = Extension('HMF', sources=['noise_filtering\HMF.pyx'])
+module2 = Extension('PyRAD_SRAD', sources=['noise_filtering\SRAD\PyRAD_SRAD.pyx'])
 
 setup(
     name='cythonTest',
     version='1.0',
-    author='jetbrains',
-    ext_modules=[module]
+    author='Daniel Olmo',
+    ext_modules=[module1, module2]
 )
