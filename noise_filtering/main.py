@@ -38,16 +38,17 @@ def csrad_test(image, steps, step_size):
     ci = np.zeros_like(image)
     for n in range(steps):
         image_n = np.abs(image_n)
-        image_n, ci, di = cy_csrad(array=image_n.clip(1e-10), ci_1=ci, iter=n, step=step_size)
+        image_n, ci, di = cy_csrad(array=image_n.clip(1e-8), ci_1=ci.clip(1e-8), iter=n, step=step_size)
         ci = np.asarray(ci.base)
 
     title = 'Final cy_CSRAD ' + str(steps) + ' steps, ' + str(step_size) + ' step size'
-    fig = plt.figure(figsize=(6, 10))
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212, projection='3d')
-    plot_image_g(image_n, ax=ax1, title=title)
-    heightmap(ci, ax=ax2, azim=10, elev=40)
-    plt.show()
+    # fig = plt.figure(figsize=(6, 10))
+    # ax1 = fig.add_subplot(211)
+    # ax2 = fig.add_subplot(212, projection='3d')
+    # plot_image_g(image_n, ax=ax1, title=title)
+    # heightmap(ci, ax=ax2, azim=10, elev=40)
+    # plt.show()
+    plot_image_g(image_n, title=title)
 
 
 def hmf_test(image):
@@ -58,6 +59,7 @@ def hmf_test(image):
     LL, wavelet_coeffs = coeffs
 
     res = []
+
     for coeff in wavelet_coeffs:
         res.append(hybrid_median_filtering(coeff).base)
 
@@ -70,12 +72,12 @@ if __name__ == '__main__':
 
     image = images[0]
     # image = image[130:300, 200:450]
-    epsilon = 1e-10
-    image += epsilon
-    hmf_test(image)
-    plot_image_g(image)
+    # epsilon = 1e-9
+    # image = image.clip(epsilon)
+    # hmf_test(image)
+    # plot_image_g(image)
 
-    # steps = 75
-    # step_size = 0.05
-    # csrad_test(image, steps=steps, step_size=step_size)
+    steps = 50
+    step_size = 0.05
+    csrad_test(image, steps=steps, step_size=step_size)
     # srad_test(image, steps=steps, step_size=step_size)

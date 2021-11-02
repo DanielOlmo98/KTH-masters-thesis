@@ -19,7 +19,7 @@ def csrad(image, steps, step_size):
     ci = np.zeros_like(image)
     for n in range(steps):
         image_n = np.abs(image_n)
-        image_n, ci, di = cy_csrad(array=image_n.clip(1e-10), ci_1=ci.clip(1e-10), iter=n, step=step_size)
+        image_n, ci, di = cy_csrad(array=image_n.clip(1e-9), ci_1=ci.clip(1e-9), iter=n, step=step_size)
         ci = np.asarray(ci.base)
 
     return image_n
@@ -28,19 +28,13 @@ def csrad(image, steps, step_size):
 def wavelet_HMF(coeffs):
     res = []
     for coeff in coeffs:
-        print('coeff')
-        res.append(hybrid_median_filtering(coeff))
+        res.append(hybrid_median_filtering(coeff).base)
     return res[0], res[1], res[2]
 
 
 def combined_method(image, steps, step_size):
     coeffs2 = pywt.dwt2(image, 'haar')
     LL, wavelet_coeffs = coeffs2
-
-    epsilon = 1e-10
-    LL.clip(epsilon)
-    for coeff in wavelet_coeffs:
-        coeff.clip(epsilon)
 
     LL = csrad(LL, steps=steps, step_size=step_size)
     LH, HL, HH = wavelet_HMF(wavelet_coeffs)
@@ -52,7 +46,7 @@ if __name__ == '__main__':
     images = load_images()
     image = images[0]
     # image = image[130:300, 200:450]
-    steps = 20
+    steps = 30
     step_size = 0.05
     denoised = combined_method(image, steps, step_size)
     plot_image_g(image, title='Original')
