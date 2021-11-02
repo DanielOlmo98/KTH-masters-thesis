@@ -50,13 +50,32 @@ def csrad_test(image, steps, step_size):
     plt.show()
 
 
+def hmf_test(image):
+    from noise_filtering.HMF import hybrid_median_filtering
+    import pywt
+
+    coeffs = pywt.dwt2(image, 'haar')
+    LL, wavelet_coeffs = coeffs
+
+    res = []
+    for coeff in wavelet_coeffs:
+        res.append(hybrid_median_filtering(coeff).base)
+
+    recopn_img = pywt.idwt2((LL, (res[0], res[1], res[2])), 'haar')
+    plot_image_g(recopn_img)
+
+
 if __name__ == '__main__':
     images = load_images()
+
     image = images[0]
     # image = image[130:300, 200:450]
-    epsilon = 10e-5
+    epsilon = 1e-10
     image += epsilon
-    steps = 75
-    step_size = 0.05
-    csrad_test(image, steps=steps, step_size=step_size)
-    srad_test(image, steps=steps, step_size=step_size)
+    hmf_test(image)
+    plot_image_g(image)
+
+    # steps = 75
+    # step_size = 0.05
+    # csrad_test(image, steps=steps, step_size=step_size)
+    # srad_test(image, steps=steps, step_size=step_size)
