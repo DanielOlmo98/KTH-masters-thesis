@@ -41,10 +41,11 @@ def hybrid_median_filtering(float [:, :] arr, int kernel_size = 5):
                             temp[temp_index] = arr[i + z - indexer][j + k - indexer]
                             temp_index += 1
 
-            diag = np.median(np.take(temp, [0, 4, 6, 8, 12, 16, 18, 20, 24]))
-            cross = np.median(np.take(temp, [2, 7, 10, 11, 12, 13, 14, 17, 22]))
-            center = np.take(temp, 12)
-            data_final[i,j] = np.median(np.array([diag, cross, center]))
+            diag = np.sort(np.take(temp, [0, 4, 6, 8, 12, 16, 18, 20, 24]))[4]
+            cross = np.sort(np.take(temp, [2, 7, 10, 11, 12, 13, 14, 17, 22]))[4]
+            center = temp[12]
+
+            data_final[i,j] = np.sort(np.array([diag, cross, center]))[1]
             temp_index = 0
             temp = np.zeros_like(temp)
 

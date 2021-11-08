@@ -67,6 +67,42 @@ def hmf_test(image):
     plot_image_g(recopn_img)
 
 
+def timetest():
+    import timeit
+
+    import_module = """import random
+    import numpy as np"""
+    testcode = '''randarr = np.random.randint(0, 25, 25)
+    diag = np.median(np.take(randarr, [0, 4, 6, 8, 12, 16, 18, 20, 24]))
+    cross = np.median(np.take(randarr, [2, 7, 10, 11, 12, 13, 14, 17, 22]))
+    center = randarr[12]
+    np.median(np.array([diag, cross, center]))
+        '''
+
+    testcode2 = '''randarr = np.random.randint(0, 25, 25)
+    diag = np.take(randarr, [0, 4, 6, 8, 12, 16, 18, 20, 24])
+    cross = np.take(randarr, [2, 7, 10, 11, 12, 13, 14, 17, 22])
+    center = randarr[12]
+    np.median(np.array([diag[0], cross[0], center]))
+            '''
+
+    testcode3 = '''randarr = np.random.randint(0, 25, 25)
+    diag = np.median(randarr)
+    cross = np.median(randarr)
+    center = randarr[12]
+    np.median(np.array([diag, cross, center]))
+                '''
+
+    testcode4 = '''randarr = np.random.randint(0, 25, 25)
+    diag = np.sort(np.take(randarr, [0, 4, 6, 8, 12, 16, 18, 20, 24]))[4]
+    cross = np.sort(np.take(randarr, [2, 7, 10, 11, 12, 13, 14, 17, 22]))[4]
+    center = randarr[12]
+    np.median(np.array([diag, cross, center]))
+                '''
+
+    print(timeit.timeit(stmt=testcode4, setup=import_module, number=500 * 500))
+
+
 if __name__ == '__main__':
     images = load_images()
 
@@ -74,10 +110,10 @@ if __name__ == '__main__':
     # image = image[130:300, 200:450]
     # epsilon = 1e-9
     # image = image.clip(epsilon)
-    # hmf_test(image)
-    # plot_image_g(image)
+    hmf_test(image)
+    plot_image_g(image)
 
     steps = 50
     step_size = 0.05
-    csrad_test(image, steps=steps, step_size=step_size)
+    # csrad_test(image, steps=steps, step_size=step_size)
     # srad_test(image, steps=steps, step_size=step_size)
