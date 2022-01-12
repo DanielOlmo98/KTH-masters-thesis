@@ -104,16 +104,21 @@ def timetest():
 
 
 if __name__ == '__main__':
+    from noise_filtering.speckle_simulation import radial_polar_sampling_gen
+
     images = load_images()
 
     image = images[0]
+    white_img = np.ones_like(image)
+    I_p = radial_polar_sampling_gen(sample_img_size=(50, 100), image=image, angle=np.pi / 2, d_min=20, d_max=450)
+    plot_image_g(I_p)
     # image = image[130:300, 200:450]
     # epsilon = 1e-9
     # image = image.clip(epsilon)
-    hmf_test(image)
-    plot_image_g(image)
-
-    steps = 50
-    step_size = 0.05
+    # hmf_test(image)
+    # plot_image_g(image)
+    #
+    # steps = 50
+    # step_size = 0.05
     # csrad_test(image, steps=steps, step_size=step_size)
     # srad_test(image, steps=steps, step_size=step_size)
