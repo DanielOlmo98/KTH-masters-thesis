@@ -91,3 +91,21 @@ def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image
     # img_final = interpolate.interp2d
 
     return img_final
+
+
+if __name__ == '__main__':
+    from utils import load_images
+
+    images = load_images()
+    image = images[0]
+
+    #                                         h    w
+    sampling_settigns = {'sample_dimension': (100, 40),
+                         'angle': np.radians(60),
+                         'd_min': 20,
+                         'd_max': 450,
+                         'b': 10,
+                         'sigma': 0.7
+                         }
+
+    simulate_noise(image=image, **sampling_settigns)

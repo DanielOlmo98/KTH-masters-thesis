@@ -93,5 +93,12 @@ def heightmap(array, ax=None, title=None, elev=None, azim=None):
         return ax
 
 
+def load_test_img():
+    from medpy.io.load import load
+    path = get_project_root() + '/dataset/training/patient0001/patient0001_2CH_ED.mhd'
+    img, header = load(path)
+    return img
+
+
 if __name__ == '__main__':
     print(get_project_root())

@@ -49,6 +49,7 @@ def csrad_test(image, steps, step_size):
     # heightmap(ci, ax=ax2, azim=10, elev=40)
     # plt.show()
     plot_image_g(image_n, title=title)
+    return image_n
 
 
 def hmf_test(image):
@@ -104,30 +105,32 @@ def timetest():
 
 
 if __name__ == '__main__':
-    from noise_filtering.speckle_simulation import radial_polar_sampling_gen, rectification, noise_gen, simulate_noise
-
     images = load_images()
+    image1 = images[0]
 
-    image = images[0]
-    white_img = np.ones_like(image)
-    #                                         h    w
-    sampling_settigns = {'sample_dimension': (100, 40),
-                         'angle': np.radians(60),
-                         'd_min': 20,
-                         'd_max': 450,
-                         'b': 10,
-                         'sigma': 0.7
-                         }
-
-    simulate_noise(image=image, **sampling_settigns)
+    image = normalize_0_1(np.squeeze(load_test_img()).astype(dtype='float32'))
 
     # image = image[130:300, 200:450]
+
     # epsilon = 1e-9
     # image = image.clip(epsilon)
     # hmf_test(image)
-    # plot_image_g(image)
-    #
-    # steps = 50
-    # step_size = 0.05
-    # csrad_test(image, steps=steps, step_size=step_size)
+    plot_image_g(image, title='Original')
+
+    steps = 100
+    step_size = 0.1
+    denoised = csrad_test(image, steps=steps, step_size=step_size)
+
     # srad_test(image, steps=steps, step_size=step_size)
+
+    from skimage.segmentation import chan_vese
+
+    # segmented = chan_vese(image, mu=2, lambda1=0.8, lambda2=0.8, tol=1e-3,
+    #                       max_iter=100, dt=0.5, init_level_set="checkerboard",
+    #                       extended_output=False)
+    # plot_image_g(segmented, title='Segmented')
+
+    segmented2 = chan_vese(denoised, mu=0.5, lambda1=0.8, lambda2=0.8, tol=1e-3,
+                           max_iter=100, dt=0.8, init_level_set="checkerboard",
+                           extended_output=False)
+    plot_image_g(segmented2, title='Segmented CSRAD')
