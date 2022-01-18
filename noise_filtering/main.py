@@ -7,7 +7,7 @@ from skimage import color, img_as_float32
 from noise_filtering.denoise import sitk_noisefilter
 from noise_filtering.wavelet_denoise import wavelet_exp
 from noise_filtering.dct import dct_exp
-from utils import *
+import utils
 
 
 # TODO: total variation optimization problem denoise
@@ -26,8 +26,8 @@ def srad_test(image, steps, step_size):
     fig = plt.figure(figsize=(6, 10))
     ax1 = fig.add_subplot(211)
     ax2 = fig.add_subplot(212, projection='3d')
-    plot_image_g(image_n, ax=ax1, title=title)
-    heightmap(ci, ax=ax2, azim=10, elev=40)
+    utils.plot_image_g(image_n, ax=ax1, title=title)
+    utils.heightmap(ci, ax=ax2, azim=10, elev=40)
     plt.show()
 
 
@@ -48,7 +48,7 @@ def csrad_test(image, steps, step_size):
     # plot_image_g(image_n, ax=ax1, title=title)
     # heightmap(ci, ax=ax2, azim=10, elev=40)
     # plt.show()
-    plot_image_g(image_n, title=title)
+    utils.plot_image_g(image_n, title=title)
     return image_n
 
 
@@ -65,7 +65,7 @@ def hmf_test(image):
         res.append(hybrid_median_filtering(coeff).base)
 
     recopn_img = pywt.idwt2((LL, (res[0], res[1], res[2])), 'haar')
-    plot_image_g(recopn_img)
+    utils.plot_image_g(recopn_img)
 
 
 def timetest():
@@ -105,17 +105,17 @@ def timetest():
 
 
 if __name__ == '__main__':
-    images = load_images()
+    images = utils.load_images()
     image1 = images[0]
 
-    image = normalize_0_1(np.squeeze(load_test_img()).astype(dtype='float32'))
+    image = utils.normalize_0_1(np.squeeze(load_test_img()).astype(dtype='float32'))
 
     # image = image[130:300, 200:450]
 
     # epsilon = 1e-9
     # image = image.clip(epsilon)
     # hmf_test(image)
-    plot_image_g(image, title='Original')
+    utils.plot_image_g(image, title='Original')
 
     steps = 100
     step_size = 0.1
@@ -133,4 +133,4 @@ if __name__ == '__main__':
     segmented2 = chan_vese(denoised, mu=0.5, lambda1=0.8, lambda2=0.8, tol=1e-3,
                            max_iter=100, dt=0.8, init_level_set="checkerboard",
                            extended_output=False)
-    plot_image_g(segmented2, title='Segmented CSRAD')
+    utils.plot_image_g(segmented2, title='Segmented CSRAD')

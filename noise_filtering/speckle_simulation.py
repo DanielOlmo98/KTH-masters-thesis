@@ -1,26 +1,36 @@
 import numpy as np
-from utils import plot_image_g
-from scipy import interpolate
+
+import utils
+from utils import plot_image_g, binarize
+from scipy import interpolate, ndimage, special, signal, misc
+import cv2
 
 
 # https://ieeexplore.ieee.org/document/4228562
 # https://ieeexplore.ieee.org/document/7967056
 
 def simulate_noise(image, sample_dimension, angle, d_min, d_max, b, sigma):
-    I_p = radial_polar_sampling_gen(image, sample_dimension, angle, d_min, d_max)
-    plot_image_g(I_p)
+    I_p = radial_polar_sampling_gen(image, d_max, angle, d_min, sample_dimension)
+    sector_mask = radial_polar_sampling_gen(image, d_max, angle, d_min)
+    sampling_mask = radial_polar_sampling_gen(sector_mask, d_max, angle, d_min, sample_dimension)
     grid = rectification(I_p, sample_dimension, angle, d_min, d_max)
     plot_image_g(grid)
     noisy_sample = noise_gen(grid, b, sigma)
     plot_image_g(noisy_sample)
-    final_img = interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image)
+    final_img = interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image, sampling_mask,
+                                  sector_mask)
     plot_image_g(final_img)
 
 
-def radial_polar_sampling_gen(image, sample_dimension, angle, d_min, d_max):
+def radial_polar_sampling_gen(image, d_max, angle, d_min, sample_dimension=None):
     img_h, img_w = np.shape(image)
-    grid_h, grid_w = sample_dimension
-    I_p = np.zeros_like(image)
+    if sample_dimension is None:
+        grid_h, grid_w = img_h, img_w
+        I_p = np.zeros_like(image, dtype=np.bool)
+    else:
+        grid_h, grid_w = sample_dimension
+        I_p = np.zeros_like(image)
+
     for i in range(grid_w):
         theta = (3 * np.pi - angle) / 2 + i * angle / grid_w
         for j in range(grid_h):
@@ -28,9 +38,12 @@ def radial_polar_sampling_gen(image, sample_dimension, angle, d_min, d_max):
             x = int((-d * np.sin(theta)))
             y = int((d * np.cos(theta) + img_w / 2))
 
-            I_p[x, y] = image[x, y]
+            if sample_dimension is None:
+                I_p[x, y] = True
+            else:
+                I_p[x, y] = image[x, y]
 
-    return I_p
+    return ndimage.median_filter(I_p, size=(4, 4)) if sample_dimension is None else I_p
 
 
 def rectification(sampled_points, sample_dimension, angle, d_min, d_max):
@@ -66,10 +79,9 @@ def noise_gen(sampled_points, b, sigma):
     return noised
 
 
-def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image):
+def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image, sampling_mask, sector_mask):
     img_h, img_w = np.shape(image)
     grid_h, grid_w = sample_dimension
-    img_temp = np.zeros(sample_dimension)
     img_final = np.zeros((img_h, img_w))
     i = 0
     for theta in np.linspace((3 * np.pi - angle) / 2, (3 * np.pi + angle) / 2, grid_w):
@@ -78,19 +90,51 @@ def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image
             x = int((-d * np.sin(theta)))
             y = int((d * np.cos(theta) + img_w / 2))
             img_final[x, y] = noisy_sample[j, i]
-            img_temp[j, i] = noisy_sample[j, i]
             j += 1
         i += 1
 
-    mask = img_final == 0
-    points = mask.nonzero()
-    values = img_final[points]
-    gridcoords = np.meshgrid[:img_h, :img_w]
+    sector_count = np.count_nonzero(sector_mask)
 
-    img_final = interpolate.griddata(points, values, gridcoords, method='nearest')  # or method='linear', method='cubic'
-    # img_final = interpolate.interp2d
+    scaling = int(np.sqrt(sector_count / (grid_w * grid_h)))
+    big_grid = cv2.resize(noisy_sample, dsize=(grid_w * scaling, grid_h * scaling), interpolation=cv2.INTER_LANCZOS4)
 
+    i = 0
+    noisy_big_flat = big_grid.flatten()
+
+    for x in range(img_h):
+        for y in range(img_w):
+            if sector_mask[x, y]:
+                img_final[x, y] = noisy_big_flat[i]
+                if i < len(noisy_big_flat) - 1:
+                    i += 1
+
+    plot_image_g(img_final)
+    plot_image_g(big_grid, title='big')
+    x = np.arange(-3, 3, .1)
+    y = np.arange(-3, 3, 1)
+    lanc_x = (special.sinc(x) * special.sinc(x / 3))
+    lanc_y = (special.sinc(y) * special.sinc(y / 3))
+    # lanc = np.outer(lanc, lanc.T)
+    # img_final = img_final + noisy_sample
+    img_final = ndimage.convolve1d(img_final, lanc_x, axis=1)
+    img_final = ndimage.convolve1d(img_final, lanc_y, axis=0)
+    # img_final = lanczos_interp(noisy_sample, 3)
     return img_final
+
+
+def lanczos_interp(rectified_noise, window_size):
+    def lanczos_kernel(window):
+        window = np.reshape(window, (-1, 7))
+        x = np.arange(-3, 3, .5)
+        lanc = (special.sinc(x) * special.sinc(x / 3))
+
+        np.multiply(window, lanc)
+
+        return np.sum(np.sum(window))
+
+    L_xy = ndimage.generic_filter(rectified_noise, lanczos_kernel, size=(window_size * 2 + 1, 1))
+    # np.sum(rectified_noise[x, y] * L_xy)
+    return L_xy
 
 
 if __name__ == '__main__':
@@ -98,11 +142,11 @@ if __name__ == '__main__':
 
     images = load_images()
     image = images[0]
-
+    plot_image_g(image)
     #                                         h    w
     sampling_settigns = {'sample_dimension': (100, 40),
-                         'angle': np.radians(60),
-                         'd_min': 20,
+                         'angle': np.radians(90),
+                         'd_min': 1,
                          'd_max': 450,
                          'b': 10,
                          'sigma': 0.7

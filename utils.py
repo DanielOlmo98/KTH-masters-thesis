@@ -50,11 +50,11 @@ def load_images(path=(get_project_root() + '/image/')):
     return images
 
 
-def plot_image_g(img, title=None, ax=None, overlay_img=None, alpha_overlay=0.5):
+def plot_image_g(img, title=None, ax=None, overlay_img=None, cmap_overlay='seismic', alpha_overlay=0.5):
     if ax is None:
         plt.imshow(img, cmap='gray')
         if overlay_img is not None:
-            plt.imshow(overlay_img, cmap='seismic', alpha=alpha_overlay)
+            plt.imshow(overlay_img, cmap=cmap_overlay, alpha=alpha_overlay)
         if title is not None:
             plt.title(title)
         plt.show()
