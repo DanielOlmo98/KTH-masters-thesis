@@ -83,42 +83,56 @@ def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image
     img_h, img_w = np.shape(image)
     grid_h, grid_w = sample_dimension
     img_final = np.zeros((img_h, img_w))
+    img_final2 = np.zeros((img_h, img_w))
     i = 0
     for theta in np.linspace((3 * np.pi - angle) / 2, (3 * np.pi + angle) / 2, grid_w):
         j = 0
         for d in np.linspace(d_min, d_max, grid_h):
             x = int((-d * np.sin(theta)))
             y = int((d * np.cos(theta) + img_w / 2))
-            img_final[x, y] = noisy_sample[j, i]
+            img_final2[x, y] = noisy_sample[j, i]
             j += 1
         i += 1
 
-    sector_count = np.count_nonzero(sector_mask)
-
-    scaling = int(np.sqrt(sector_count / (grid_w * grid_h)))
-    big_grid = cv2.resize(noisy_sample, dsize=(grid_w * scaling, grid_h * scaling), interpolation=cv2.INTER_LANCZOS4)
-
-    i = 0
-    noisy_big_flat = big_grid.flatten()
-
-    for x in range(img_h):
-        for y in range(img_w):
-            if sector_mask[x, y]:
-                img_final[x, y] = noisy_big_flat[i]
-                if i < len(noisy_big_flat) - 1:
-                    i += 1
-
-    plot_image_g(img_final)
-    plot_image_g(big_grid, title='big')
-    x = np.arange(-3, 3, .1)
-    y = np.arange(-3, 3, 1)
+    x = np.linspace(-3, 3, 400)
+    y = np.linspace(-3, 3, 300)
     lanc_x = (special.sinc(x) * special.sinc(x / 3))
     lanc_y = (special.sinc(y) * special.sinc(y / 3))
     # lanc = np.outer(lanc, lanc.T)
     # img_final = img_final + noisy_sample
-    img_final = ndimage.convolve1d(img_final, lanc_x, axis=1)
-    img_final = ndimage.convolve1d(img_final, lanc_y, axis=0)
-    # img_final = lanczos_interp(noisy_sample, 3)
+    img_final2 = ndimage.convolve1d(img_final2, lanc_x, axis=1)
+    img_final2 = ndimage.convolve1d(img_final2, lanc_y, axis=0)
+
+    # big_grid = cv2.resize(noisy_sample, dsize=(grid_w * scaling, grid_h * scaling), interpolation=cv2.INTER_LANCZOS4)
+    i = 0
+    for h in range(img_h):
+        # for y in range(img_w):
+        # if sector_mask[x, :]:
+        sector_line = sector_mask[h, :]
+        noisy_line = noisy_sample[i, :]
+        x = np.linspace(-3, 3, np.count_nonzero(sector_line))
+        lanc_kernel = (special.sinc(x) * special.sinc(x / 3))
+        resample = signal.convolve(lanc_kernel, noisy_line, mode='same')
+        for index, value in zip(np.argwhere(sector_line), resample):
+            img_final[h, index] = value
+        if h // int(img_h / grid_h) == 0:
+            i += 1
+            # temp = np.put_along_axis(img_final[h, :], np.argwhere(sector_line), resample, axis=0)
+        # img_final[h, :] = temp
+        # img_final[x, y] = noisy_big_flat[i]
+        # if i < len(noisy_big_flat) - 1:
+        #     i += 1
+    img_final = utils.normalize_0_255(img_final)
+    plot_image_g(img_final2)
+    # x = np.arange(-3, 3, .1)
+    # y = np.arange(-3, 3, 1)
+    # lanc_x = (special.sinc(x) * special.sinc(x / 3))
+    # lanc_y = (special.sinc(y) * special.sinc(y / 3))
+    # # lanc = np.outer(lanc, lanc.T)
+    # # img_final = img_final + noisy_sample
+    # img_final = ndimage.convolve1d(img_final, lanc_x, axis=1)
+    # img_final = ndimage.convolve1d(img_final, lanc_y, axis=0)
+    # # img_final = lanczos_interp(noisy_sample, 3)
     return img_final
 
 
