@@ -106,9 +106,9 @@ def timetest():
 
 if __name__ == '__main__':
     images = utils.load_images()
-    image1 = images[0]
+    image = images[0]
 
-    image = utils.normalize_0_1(np.squeeze(load_test_img()).astype(dtype='float32'))
+    # image = utils.normalize_0_1(np.squeeze(load_test_img()).astype(dtype='float32'))
 
     # image = image[130:300, 200:450]
 
@@ -121,16 +121,29 @@ if __name__ == '__main__':
     step_size = 0.1
     denoised = csrad_test(image, steps=steps, step_size=step_size)
 
+    #                                         h    w
+    sampling_settigns = {'sample_dimension': (100, 40),
+                         'angle': np.radians(90),
+                         'd_min': 1,
+                         'd_max': 450,
+                         'b': 10,
+                         'sigma': 0.7
+                         }
+
+    from noise_filtering.speckle_simulation import simulate_noise
+    noise = simulate_noise(image=denoised, **sampling_settigns)
+    utils.plot_image_g(noise*denoised+denoised)
+
     # srad_test(image, steps=steps, step_size=step_size)
 
-    from skimage.segmentation import chan_vese
-
-    # segmented = chan_vese(image, mu=2, lambda1=0.8, lambda2=0.8, tol=1e-3,
-    #                       max_iter=100, dt=0.5, init_level_set="checkerboard",
-    #                       extended_output=False)
-    # plot_image_g(segmented, title='Segmented')
-
-    segmented2 = chan_vese(denoised, mu=0.5, lambda1=0.8, lambda2=0.8, tol=1e-3,
-                           max_iter=100, dt=0.8, init_level_set="checkerboard",
-                           extended_output=False)
-    utils.plot_image_g(segmented2, title='Segmented CSRAD')
+    # from skimage.segmentation import chan_vese
+    #
+    # # segmented = chan_vese(image, mu=2, lambda1=0.8, lambda2=0.8, tol=1e-3,
+    # #                       max_iter=100, dt=0.5, init_level_set="checkerboard",
+    # #                       extended_output=False)
+    # # plot_image_g(segmented, title='Segmented')
+    #
+    # segmented2 = chan_vese(denoised, mu=0.5, lambda1=0.8, lambda2=0.8, tol=1e-3,
+    #                        max_iter=100, dt=0.8, init_level_set="checkerboard",
+    #                        extended_output=False)
+    # utils.plot_image_g(segmented2, title='Segmented CSRAD')
