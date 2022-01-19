@@ -97,7 +97,7 @@ def load_test_img():
     from medpy.io.load import load
     path = get_project_root() + '/dataset/training/patient0001/patient0001_2CH_ED.mhd'
     img, header = load(path)
-    return img
+    return img, header
 
 
 if __name__ == '__main__':
