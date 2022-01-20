@@ -119,8 +119,8 @@ if __name__ == '__main__':
 
     steps = 100
     step_size = 0.1
-    denoised = csrad_test(image, steps=steps, step_size=step_size)
-
+    denoised = csrad_test(image, steps=steps//2, step_size=step_size)
+    denoised2 = csrad_test(image, steps=steps, step_size=step_size)
     #                                         h    w
     sampling_settigns = {'sample_dimension': (100, 40),
                          'angle': np.radians(90),
