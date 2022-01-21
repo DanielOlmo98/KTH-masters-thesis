@@ -105,8 +105,8 @@ def timetest():
 
 
 if __name__ == '__main__':
-    images = utils.load_images()
-    image = images[0]
+    # images = utils.load_images()
+    # image = images[0]
 
     # image = utils.normalize_0_1(np.squeeze(load_test_img()).astype(dtype='float32'))
 
@@ -115,24 +115,28 @@ if __name__ == '__main__':
     # epsilon = 1e-9
     # image = image.clip(epsilon)
     # hmf_test(image)
+
+    image, header = utils.load_test_img()
+    image = utils.normalize_0_1(np.squeeze(image.astype(dtype='float32')))
     utils.plot_image_g(image, title='Original')
 
     steps = 100
     step_size = 0.1
-    denoised = csrad_test(image, steps=steps//2, step_size=step_size)
+    denoised = csrad_test(image, steps=steps // 2, step_size=step_size)
     denoised2 = csrad_test(image, steps=steps, step_size=step_size)
     #                                         h    w
     sampling_settigns = {'sample_dimension': (100, 40),
-                         'angle': np.radians(90),
+                         'angle': np.radians(60),
                          'd_min': 1,
-                         'd_max': 450,
+                         'd_max': 548,
                          'b': 10,
                          'sigma': 0.7
                          }
 
     from noise_filtering.speckle_simulation import simulate_noise
-    noise = simulate_noise(image=denoised, **sampling_settigns)
-    utils.plot_image_g(noise*denoised+denoised)
+
+    noise = simulate_noise(image=denoised2, **sampling_settigns)
+    utils.plot_image_g(noise * denoised2 + denoised2)
 
     # srad_test(image, steps=steps, step_size=step_size)
 

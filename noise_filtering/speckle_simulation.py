@@ -11,6 +11,7 @@ import cv2
 
 def simulate_noise(image, sample_dimension, angle, d_min, d_max, b, sigma):
     I_p = radial_polar_sampling_gen(image, d_max, angle, d_min, sample_dimension)
+    plot_image_g(I_p)
     sector_mask = radial_polar_sampling_gen(image, d_max, angle, d_min)
     sampling_mask = radial_polar_sampling_gen(sector_mask, d_max, angle, d_min, sample_dimension)
     grid = rectification(I_p, sample_dimension, angle, d_min, d_max)
@@ -95,18 +96,15 @@ def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image
             j += 1
         i += 1
 
-    y = np.linspace(-2, 2, 20)
-    lanc_y = (special.sinc(y) * special.sinc(y / 2))
-
-    for h in range(img_h):
+    for h in range(15,img_h-15):
         if np.count_nonzero(sector_mask[h, :]) == 0:
             continue
-        x = np.linspace(-4, 4, np.count_nonzero(sector_mask[h, :]) // 3)
-        lanc_x = (special.sinc(x) * special.sinc(x / 4))
-        img_final[h, :] = ndimage.convolve1d(img_final[h, :], lanc_x)
+        img_final[h, :] = ndimage.convolve1d(img_final[h, :], lanc_kernel(4, np.count_nonzero(sector_mask[h, :])))
+        img_final[h - 5:h + 5,:] = ndimage.convolve1d(img_final[h - 5:h + 5,:],
+                                                    lanc_kernel(3, np.count_nonzero(sector_mask[h, :])), axis=0)
 
-    img_final = ndimage.convolve1d(img_final, lanc_y, axis=0)
     img_final[~sector_mask] = 0
+    return img_final
 
     # # big_grid = cv2.resize(noisy_sample, dsize=(grid_w * scaling, grid_h * scaling), interpolation=cv2.INTER_LANCZOS4)
     # i = 0
@@ -137,7 +135,11 @@ def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image
     # img_final = ndimage.convolve1d(img_final, lanc_x, axis=1)
     # img_final = ndimage.convolve1d(img_final, lanc_y, axis=0)
     # # img_final = lanczos_interp(noisy_sample, 3)
-    return img_final
+
+
+def lanc_kernel(a, steps):
+    x = np.linspace(-a, a, steps)
+    return special.sinc(x) * special.sinc(x / a)
 
 
 def lanczos_interp(rectified_noise, window_size):

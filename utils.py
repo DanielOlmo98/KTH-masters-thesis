@@ -1,5 +1,6 @@
 import os
 import SimpleITK as sitk
+import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.io import imread
@@ -52,6 +53,7 @@ def load_images(path=(get_project_root() + '/image/')):
 
 def plot_image_g(img, title=None, ax=None, overlay_img=None, cmap_overlay='seismic', alpha_overlay=0.5):
     if ax is None:
+        plt.figure(figsize=np.divide(img.shape[::-1], 100))
         plt.imshow(img, cmap='gray')
         if overlay_img is not None:
             plt.imshow(overlay_img, cmap=cmap_overlay, alpha=alpha_overlay)
@@ -97,7 +99,42 @@ def load_test_img():
     from medpy.io.load import load
     path = get_project_root() + '/dataset/training/patient0001/patient0001_2CH_ED.mhd'
     img, header = load(path)
+    img = np.rot90(img, axes=(1, 0))
     return img, header
+
+
+def slice_view_3d(volume):
+    # not working
+    class IndexTracker:
+        def __init__(self, ax, X):
+            self.ax = ax
+            ax.set_title('use scroll wheel to navigate images')
+
+            self.X = X
+            rows, cols, self.slices = X.shape
+            self.ind = self.slices // 2
+
+            self.im = ax.imshow(self.X[:, :, self.ind])
+            self.update()
+
+        def on_scroll(self, event):
+            print("%s %s" % (event.button, event.step))
+            if event.button == 'up':
+                self.ind = (self.ind + 1) % self.slices
+            else:
+                self.ind = (self.ind - 1) % self.slices
+            self.update()
+
+        def update(self):
+            self.im.set_data(self.X[:, :, self.ind])
+            self.ax.set_ylabel('slice %s' % self.ind)
+            self.im.axes.figure.canvas.draw()
+
+    fig, ax = plt.subplots(1, 1)
+    fig.canvas.mpl_connect('scroll_event', IndexTracker(ax, volume).on_scroll)
+    plt.show()
+
+    return
 
 
 if __name__ == '__main__':
