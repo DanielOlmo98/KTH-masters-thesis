@@ -38,8 +38,8 @@ def combined_method(image, steps, step_size):
 
     LL = csrad(LL, steps=steps, step_size=step_size)
     LH, HL, HH = wavelet_HMF(wavelet_coeffs)
-    recopn_img = pywt.idwt2((LL, (LH, HL, HH)), 'haar')
-    return recopn_img
+    recon_img = pywt.idwt2((LL, (LH, HL, HH)), 'haar')
+    return recon_img[:, 0:-1]
 
 
 if __name__ == '__main__':

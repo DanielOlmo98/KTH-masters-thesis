@@ -21,7 +21,7 @@ def simulate_noise(image, sample_dimension, angle, d_min, d_max, b, sigma):
     final_img = interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image, sampling_mask,
                                   sector_mask)
     final_img = utils.normalize_0_1(final_img)
-    plot_image_g(final_img)
+    plot_image_g(final_img, title='Noise Final')
     return final_img
 
 
@@ -96,13 +96,22 @@ def interpolate_noise(noisy_sample, angle, sample_dimension, d_min, d_max, image
             j += 1
         i += 1
 
-    for h in range(15,img_h-15):
-        if np.count_nonzero(sector_mask[h, :]) == 0:
+    for h in range(img_h):
+        if np.count_nonzero(sector_mask[h, :]) <= 3:
             continue
         img_final[h, :] = ndimage.convolve1d(img_final[h, :], lanc_kernel(4, np.count_nonzero(sector_mask[h, :])))
-        img_final[h - 5:h + 5,:] = ndimage.convolve1d(img_final[h - 5:h + 5,:],
-                                                    lanc_kernel(3, np.count_nonzero(sector_mask[h, :])), axis=0)
 
+        # plot_image_g(img_final)
+        # for h in range(20, img_h - 20, 5):
+        #     steps = np.count_nonzero(sector_mask[h, :])
+        #     if steps <= 3:
+        #         continue
+        #     img_final[h - 20:h + 20, :] = ndimage.convolve1d(img_final[h - 20:h + 20, :],
+        #                                                      lanc_kernel(3, steps), axis=0)
+        # plot_image_g(sector_mask)
+        # plot_image_g(img_final)
+
+    img_final = ndimage.convolve1d(img_final, lanc_kernel(4, 100), axis=0)
     img_final[~sector_mask] = 0
     return img_final
 

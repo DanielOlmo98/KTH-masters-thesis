@@ -1,6 +1,7 @@
 import numpy as np
 import utils
 import os
+import matplotlib as mpl
 from medpy.io.load import load
 
 
@@ -32,10 +33,12 @@ def load_patient_data(patient_path):
     return zip(images, segmentations, headers), zip(sequences, sequence_headers)
 
 
+
+
 if __name__ == '__main__':
     patient1, patient1_sequence = load_patient_data('/dataset/training/patient0001/')
     for img, segmentation, header in patient1:
         if np.shape(img)[-1] == 1:
-            utils.plot_image_g(img, overlay_img=segmentation, alpha_overlay=0.2)
-    for volume, header in patient1_sequence:
-        utils.slice_view_3d(volume)
+            utils.plot_image_g(np.squeeze(img), overlay_img=segmentation, alpha_overlay=0.2)
+    # for volume, header in patient1_sequence:
+    #     utils.slice_view_3d(volume)

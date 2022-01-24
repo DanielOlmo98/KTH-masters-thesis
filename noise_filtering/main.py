@@ -12,26 +12,27 @@ import utils
 
 # TODO: total variation optimization problem denoise
 
-def srad_test(image, steps, step_size):
+def srad_test(image, steps, step_size, overlay=None):
     from noise_filtering.SRAD.PyRAD_SRAD import cy_srad
 
     image_n = image
-    ci = []
+    ci = np.zeros_like(image)
     for n in range(steps):
         image_n = np.abs(image_n)
         image_n, ci, di = cy_srad(array=image_n.clip(1e-10), iter=n, step=step_size)
+        ci = np.asarray(ci.base)
 
-    ci = np.asarray(ci.base)
     title = 'Final cy_SRAD ' + str(steps) + ' steps, ' + str(step_size) + ' step size'
-    fig = plt.figure(figsize=(6, 10))
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212, projection='3d')
-    utils.plot_image_g(image_n, ax=ax1, title=title)
-    utils.heightmap(ci, ax=ax2, azim=10, elev=40)
-    plt.show()
+    # fig = plt.figure(figsize=(6, 10))
+    # ax1 = fig.add_subplot(211)
+    # ax2 = fig.add_subplot(212, projection='3d')
+    # utils.heightmap(ci, ax=ax2, azim=10, elev=40)
+    # plt.show()
+    utils.plot_image_g(image_n, title=title, overlay_img=overlay)
+    return image_n
 
 
-def csrad_test(image, steps, step_size):
+def csrad_test(image, steps, step_size, overlay=None):
     from noise_filtering.SRAD.PyRAD_SRAD import cy_csrad
 
     image_n = image
@@ -48,11 +49,11 @@ def csrad_test(image, steps, step_size):
     # plot_image_g(image_n, ax=ax1, title=title)
     # heightmap(ci, ax=ax2, azim=10, elev=40)
     # plt.show()
-    utils.plot_image_g(image_n, title=title)
+    utils.plot_image_g(image_n, title=title, overlay_img=overlay)
     return image_n
 
 
-def hmf_test(image):
+def hmf_test(image, overlay=None):
     from noise_filtering.HMF import hybrid_median_filtering
     import pywt
 
@@ -65,7 +66,15 @@ def hmf_test(image):
         res.append(hybrid_median_filtering(coeff).base)
 
     recopn_img = pywt.idwt2((LL, (res[0], res[1], res[2])), 'haar')
-    utils.plot_image_g(recopn_img)
+    utils.plot_image_g(recopn_img, overlay_img=overlay)
+
+
+def combined_test(image, steps, step_size, overlay=None):
+    from noise_filtering.combined_method import combined_method
+    image = combined_method(image, steps, step_size)
+    title = 'Final combined method' + str(steps) + ' steps, ' + str(step_size) + ' step size'
+    utils.plot_image_g(image, title=title, overlay_img=overlay)
+    return image
 
 
 def timetest():
@@ -115,15 +124,28 @@ if __name__ == '__main__':
     # epsilon = 1e-9
     # image = image.clip(epsilon)
     # hmf_test(image)
+    image = None
+    segmentation = None
+    from image_visualization.image_view import load_patient_data
 
-    image, header = utils.load_test_img()
+    patient1, _ = load_patient_data('/dataset/training/patient0001/')
+    for img, seg, _ in patient1:
+        if np.shape(img)[-1] == 1:
+            image = img
+            segmentation = seg
+            break
     image = utils.normalize_0_1(np.squeeze(image.astype(dtype='float32')))
     utils.plot_image_g(image, title='Original')
 
     steps = 100
     step_size = 0.1
-    denoised = csrad_test(image, steps=steps // 2, step_size=step_size)
-    denoised2 = csrad_test(image, steps=steps, step_size=step_size)
+    denoised = srad_test(image, steps=steps, step_size=step_size, overlay=segmentation)
+    denoised2 = csrad_test(image, steps=steps, step_size=step_size, overlay=segmentation)
+    denoised3 = combined_test(image, steps=steps, step_size=step_size, overlay=segmentation)
+    utils.plot_image_g(np.abs(image - denoised), title="Denoised 1")
+    utils.plot_image_g(np.abs(image - denoised2), title="Denoised 2")
+    utils.plot_image_g(np.abs(image - denoised3), title="Denoised 3")
+
     #                                         h    w
     sampling_settigns = {'sample_dimension': (100, 40),
                          'angle': np.radians(60),
