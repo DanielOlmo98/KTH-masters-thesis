@@ -77,6 +77,22 @@ def combined_test(image, steps, step_size, overlay=None):
     return image
 
 
+def noise_test(img):
+    #                                         h    w
+    sampling_settigns = {'sample_dimension': (100, 40),
+                         'angle': np.radians(60),
+                         'd_min': 1,
+                         'd_max': 548,
+                         'b': 10,
+                         'sigma': 0.7
+                         }
+
+    from noise_filtering.speckle_simulation import simulate_noise
+
+    noise = simulate_noise(image=img, **sampling_settigns)
+    utils.plot_image_g(noise * img + denoised2)
+
+
 def timetest():
     import timeit
 
@@ -124,41 +140,33 @@ if __name__ == '__main__':
     # epsilon = 1e-9
     # image = image.clip(epsilon)
     # hmf_test(image)
-    image = None
-    segmentation = None
+    images = []
+    segmentations = []
     from image_visualization.image_view import load_patient_data
 
     patient1, _ = load_patient_data('/dataset/training/patient0001/')
     for img, seg, _ in patient1:
         if np.shape(img)[-1] == 1:
-            image = img
-            segmentation = seg
-            break
-    image = utils.normalize_0_1(np.squeeze(image.astype(dtype='float32')))
-    utils.plot_image_g(image, title='Original')
+            images.append(img)
+            segmentations.append(seg)
+
+    image = images[3]
+    segmentation = segmentations[3]
+    image = np.rot90(utils.normalize_0_1(np.squeeze(image.astype(dtype='float32'))), axes=(1, 0))
+    segmentation = np.rot90(segmentation, axes=(1, 0))
+    utils.plot_image_g(image, title='Original', overlay_img=segmentation)
 
     steps = 100
     step_size = 0.1
-    denoised = srad_test(image, steps=steps, step_size=step_size, overlay=segmentation)
-    denoised2 = csrad_test(image, steps=steps, step_size=step_size, overlay=segmentation)
-    denoised3 = combined_test(image, steps=steps, step_size=step_size, overlay=segmentation)
-    utils.plot_image_g(np.abs(image - denoised), title="Denoised 1")
-    utils.plot_image_g(np.abs(image - denoised2), title="Denoised 2")
-    utils.plot_image_g(np.abs(image - denoised3), title="Denoised 3")
-
-    #                                         h    w
-    sampling_settigns = {'sample_dimension': (100, 40),
-                         'angle': np.radians(60),
-                         'd_min': 1,
-                         'd_max': 548,
-                         'b': 10,
-                         'sigma': 0.7
-                         }
-
-    from noise_filtering.speckle_simulation import simulate_noise
-
-    noise = simulate_noise(image=denoised2, **sampling_settigns)
-    utils.plot_image_g(noise * denoised2 + denoised2)
+    denoised = srad_test(image, steps=steps, step_size=step_size, overlay=None)
+    denoised2 = csrad_test(image, steps=steps, step_size=step_size, overlay=None)
+    denoised3 = combined_test(image, steps=steps // 2, step_size=step_size, overlay=None)
+    plt.imshow((image - denoised), cmap='bwr')
+    plt.show()
+    plt.imshow((image - denoised2), cmap='bwr')
+    plt.show()
+    plt.imshow((image - denoised3), cmap='bwr')
+    plt.show()
 
     # srad_test(image, steps=steps, step_size=step_size)
 
