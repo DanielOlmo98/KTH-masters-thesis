@@ -7,8 +7,8 @@ from skimage.io import imread
 from skimage import color, img_as_float32
 
 
-def binarize(img):
-    img[img > 0] = 1
+def binarize(img, threshold=0.5):
+    img[img > threshold] = 1
     return img
 
 
@@ -46,7 +46,7 @@ def load_images(path=(get_project_root() + '/image/')):
             continue
 
         image = imread(common_file_path)
-        image = image[80:550, 80:720]
+        # image = image[80:550, 80:720]
         images.append(img_as_float32(color.rgb2gray(image)))
     return images
 

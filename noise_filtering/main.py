@@ -1,12 +1,15 @@
 import os
 import SimpleITK as sitk
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.io import imread
 from skimage import color, img_as_float32
+from skimage.transform import resize
 from noise_filtering.denoise import sitk_noisefilter
 from noise_filtering.wavelet_denoise import wavelet_exp
 from noise_filtering.dct import dct_exp
+import cv2
 import utils
 
 
@@ -19,7 +22,7 @@ def srad_test(image, steps, step_size, overlay=None):
     ci = np.zeros_like(image)
     for n in range(steps):
         image_n = np.abs(image_n)
-        image_n, ci, di = cy_srad(array=image_n.clip(1e-10), iter=n, step=step_size)
+        image_n, ci, di = cy_srad(array=image_n.clip(1e-8), iter=n, step=step_size)
         ci = np.asarray(ci.base)
 
     title = 'Final cy_SRAD ' + str(steps) + ' steps, ' + str(step_size) + ' step size'
@@ -140,32 +143,53 @@ if __name__ == '__main__':
     # epsilon = 1e-9
     # image = image.clip(epsilon)
     # hmf_test(image)
-    images = []
-    segmentations = []
-    from image_visualization.image_view import load_patient_data
+    # images = []
 
-    patient1, _ = load_patient_data('/dataset/training/patient0001/')
-    for img, seg, _ in patient1:
-        if np.shape(img)[-1] == 1:
-            images.append(img)
-            segmentations.append(seg)
+    # segmentations = []
+    # from image_visualization.image_view import load_patient_data
+    #
+    # patient1, _ = load_patient_data('/dataset/training/patient0001/')
+    # for img, seg, _ in patient1:
+    #     if np.shape(img)[-1] == 1:
+    #         images.append(img)
+    #         segmentations.append(seg)
+    #
+    # image = images[3]
+    # segmentation = segmentations[3]
+    # image = np.rot90(utils.normalize_0_1(np.squeeze(image.astype(dtype='float32'))), axes=(1, 0))
+    # segmentation = np.rot90(segmentation, axes=(1, 0))
 
-    image = images[3]
-    segmentation = segmentations[3]
-    image = np.rot90(utils.normalize_0_1(np.squeeze(image.astype(dtype='float32'))), axes=(1, 0))
-    segmentation = np.rot90(segmentation, axes=(1, 0))
-    utils.plot_image_g(image, title='Original', overlay_img=segmentation)
+    segmentation = None
+    ground_truth = utils.load_images()[0]
+    image = utils.load_images()[2]
 
-    steps = 100
+    gt_h, gt_w = ground_truth.shape
+    img_h, img_w = image.shape
+
+    img_h = int(img_h * (gt_w / img_w))
+
+    image = cv2.resize(image, (gt_w, img_h))
+
+    image = cv2.copyMakeBorder(image, ground_truth.shape[0] - image.shape[0], 0, 0, 0, borderType=cv2.BORDER_CONSTANT)
+
+    utils.plot_image_g(image, title='Noised', overlay_img=segmentation)
+    utils.plot_image_g(ground_truth, title='Original', overlay_img=segmentation)
+
+    steps = 150
     step_size = 0.1
-    denoised = srad_test(image, steps=steps, step_size=step_size, overlay=None)
+    denoised1 = srad_test(image, steps=steps, step_size=step_size, overlay=None)
     denoised2 = csrad_test(image, steps=steps, step_size=step_size, overlay=None)
     denoised3 = combined_test(image, steps=steps // 2, step_size=step_size, overlay=None)
-    plt.imshow((image - denoised), cmap='bwr')
+
+    diff1 = (utils.normalize_0_1(ground_truth)) - (utils.normalize_0_1(denoised1))
+    diff2 = (utils.normalize_0_1(ground_truth)) - (utils.normalize_0_1(denoised2))
+    diff3 = (utils.normalize_0_1(ground_truth[:, 0:-1])) - (utils.normalize_0_1(denoised3))
+
+    plt.imshow(diff1, cmap='bwr')
     plt.show()
-    plt.imshow((image - denoised2), cmap='bwr')
+    plt.imshow(diff2, cmap='bwr')
     plt.show()
-    plt.imshow((image - denoised3), cmap='bwr')
+    plt.imshow(diff3, cmap='bwr')
     plt.show()
 
     # srad_test(image, steps=steps, step_size=step_size)
