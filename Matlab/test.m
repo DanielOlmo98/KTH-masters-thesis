@@ -1,7 +1,7 @@
 %% RF signal sim
 addpath('C:\Users\emine\AppData\Roaming\MathWorks\MATLAB Add-Ons\Toolboxes\MUST');
 param = getparam('P4-2v');
-I = imread('s12.png');
+I = imread('s13.png');
 
 [nl,nc,~] = size(I);
 

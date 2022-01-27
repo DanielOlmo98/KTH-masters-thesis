@@ -72,12 +72,35 @@ def hmf_test(image, overlay=None):
     utils.plot_image_g(recopn_img, overlay_img=overlay)
 
 
-def combined_test(image, steps, step_size, overlay=None):
+def combined_test(image, steps, step_size, weight, overlay=None):
     from noise_filtering.combined_method import combined_method
-    image = combined_method(image, steps, step_size)
-    title = 'Final combined method' + str(steps) + ' steps, ' + str(step_size) + ' step size'
+    image = combined_method(image, steps, step_size, weight)
+    title = 'Combined method ' + str(steps) + ' steps, ' + str(step_size) + ' step size'
     utils.plot_image_g(image, title=title, overlay_img=overlay)
     return image
+
+
+def total_variation_test(image, weight, overlay=None):
+    from skimage.restoration import denoise_tv_bregman
+    image = denoise_tv_bregman(image, weight)
+    title = f"Total variation {weight} weight"
+    utils.plot_image_g(image, title=title, overlay_img=overlay)
+    return image
+
+
+def tv_csrad(image, steps, step_size, weight, overlay=None):
+    from skimage.restoration import denoise_tv_bregman
+    from noise_filtering.SRAD.PyRAD_SRAD import cy_csrad
+    image = denoise_tv_bregman(image, weight)
+    image_n = image
+    ci = np.zeros_like(image)
+    for n in range(steps):
+        image_n = np.abs(image_n)
+        image_n, ci, di = cy_csrad(array=image_n.clip(1e-8), ci_1=ci.clip(1e-8), iter=n, step=step_size)
+        ci = np.asarray(ci.base)
+    title = f"TV + CSRAD, {steps} steps, {step_size} step size, {weight} weight"
+    utils.plot_image_g(image_n, title=title, overlay_img=overlay)
+    return image_n
 
 
 def noise_test(img):
@@ -133,34 +156,10 @@ def timetest():
 
 
 if __name__ == '__main__':
-    # images = utils.load_images()
-    # image = images[0]
-
-    # image = utils.normalize_0_1(np.squeeze(load_test_img()).astype(dtype='float32'))
-
-    # image = image[130:300, 200:450]
-
-    # epsilon = 1e-9
-    # image = image.clip(epsilon)
-    # hmf_test(image)
-    # images = []
-
-    # segmentations = []
-    # from image_visualization.image_view import load_patient_data
-    #
-    # patient1, _ = load_patient_data('/dataset/training/patient0001/')
-    # for img, seg, _ in patient1:
-    #     if np.shape(img)[-1] == 1:
-    #         images.append(img)
-    #         segmentations.append(seg)
-    #
-    # image = images[3]
-    # segmentation = segmentations[3]
-    # image = np.rot90(utils.normalize_0_1(np.squeeze(image.astype(dtype='float32'))), axes=(1, 0))
-    # segmentation = np.rot90(segmentation, axes=(1, 0))
+    from skimage.metrics import mean_squared_error, peak_signal_noise_ratio, structural_similarity
 
     segmentation = None
-    ground_truth = utils.load_images()[0]
+    ground_truth = utils.normalize_0_1(utils.load_images()[0])
     image = utils.load_images()[2]
 
     gt_h, gt_w = ground_truth.shape
@@ -170,38 +169,42 @@ if __name__ == '__main__':
 
     image = cv2.resize(image, (gt_w, img_h))
 
-    image = cv2.copyMakeBorder(image, ground_truth.shape[0] - image.shape[0], 0, 0, 0, borderType=cv2.BORDER_CONSTANT)
+    image = cv2.copyMakeBorder(
+        image, ground_truth.shape[0] - image.shape[0], 0, 0, 0, borderType=cv2.BORDER_CONSTANT, value=0)
 
     utils.plot_image_g(image, title='Noised', overlay_img=segmentation)
     utils.plot_image_g(ground_truth, title='Original', overlay_img=segmentation)
 
-    steps = 150
-    step_size = 0.1
-    denoised1 = srad_test(image, steps=steps, step_size=step_size, overlay=None)
-    denoised2 = csrad_test(image, steps=steps, step_size=step_size, overlay=None)
-    denoised3 = combined_test(image, steps=steps // 2, step_size=step_size, overlay=None)
+    step_list = [150]
+    step_size_list = [0.05]
+    denoised_list = []
+    for steps in step_list:
+        for step_size in step_size_list:
+            denoised_list.append(utils.normalize_0_1(srad_test(image, steps=steps, step_size=step_size, overlay=None)))
+            denoised_list.append(utils.normalize_0_1(csrad_test(image, steps=steps, step_size=step_size, overlay=None)))
+            denoised_list.append(cv2.copyMakeBorder(utils.normalize_0_1(
+                combined_test(image, steps=steps // 2, step_size=step_size, overlay=None, weight=0.3)), 0, 0, 0, 1,
+                borderType=cv2.BORDER_CONSTANT, value=0)
+            )
+            denoised_list.append(total_variation_test(image, weight=0.3, overlay=None))
+            denoised_list.append(tv_csrad(image, steps=steps, step_size=step_size, weight=0.3, overlay=None))
 
-    diff1 = (utils.normalize_0_1(ground_truth)) - (utils.normalize_0_1(denoised1))
-    diff2 = (utils.normalize_0_1(ground_truth)) - (utils.normalize_0_1(denoised2))
-    diff3 = (utils.normalize_0_1(ground_truth[:, 0:-1])) - (utils.normalize_0_1(denoised3))
+            print(f"Steps: {steps}, Step size: {step_size}")
+            for denoised in denoised_list:
+                ssim = structural_similarity(ground_truth, denoised)
+                psnr = peak_signal_noise_ratio(ground_truth, denoised)
+                print("SSIM: {:.3f}".format(ssim))
+                print("PSNR: {:.3f}".format(psnr))
+                print()
 
-    plt.imshow(diff1, cmap='bwr')
-    plt.show()
-    plt.imshow(diff2, cmap='bwr')
-    plt.show()
-    plt.imshow(diff3, cmap='bwr')
-    plt.show()
+                from skimage.segmentation import chan_vese
 
-    # srad_test(image, steps=steps, step_size=step_size)
-
-    # from skimage.segmentation import chan_vese
-    #
-    # # segmented = chan_vese(image, mu=2, lambda1=0.8, lambda2=0.8, tol=1e-3,
-    # #                       max_iter=100, dt=0.5, init_level_set="checkerboard",
-    # #                       extended_output=False)
-    # # plot_image_g(segmented, title='Segmented')
-    #
-    # segmented2 = chan_vese(denoised, mu=0.5, lambda1=0.8, lambda2=0.8, tol=1e-3,
-    #                        max_iter=100, dt=0.8, init_level_set="checkerboard",
-    #                        extended_output=False)
-    # utils.plot_image_g(segmented2, title='Segmented CSRAD')
+            #     segmented2 = chan_vese(denoised, mu=0.25, lambda1=1, lambda2=1, tol=1e-3,
+            #                            max_iter=500, dt=0.5, init_level_set="checkerboard",
+            #                            extended_output=False)
+            #     utils.plot_image_g(segmented2, title='Segmented')
+            #
+            # segmented = chan_vese(image, mu=0.25, lambda1=1, lambda2=0.8, tol=1e-3,
+            #                       max_iter=500, dt=0.5, init_level_set="checkerboard",
+            #                       extended_output=False)
+            # utils.plot_image_g(segmented, title='Segmented')

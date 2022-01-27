@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from utils import *
 from noise_filtering.SRAD.PyRAD_SRAD import cy_csrad
 from noise_filtering.HMF import hybrid_median_filtering
+from skimage.restoration import denoise_tv_bregman
 import pywt
 
 '''
@@ -32,13 +33,14 @@ def wavelet_HMF(coeffs):
     return res[0], res[1], res[2]
 
 
-def combined_method(image, steps, step_size):
+def combined_method(image, steps, step_size, tv_weight=0.5):
     coeffs2 = pywt.dwt2(image, 'haar')
     LL, wavelet_coeffs = coeffs2
 
     LL = csrad(LL, steps=steps, step_size=step_size)
     LH, HL, HH = wavelet_HMF(wavelet_coeffs)
     recon_img = pywt.idwt2((LL, (LH, HL, HH)), 'haar')
+    recon_img = denoise_tv_bregman(recon_img, weight=tv_weight)
     return recon_img[:, 0:-1]
 
 
