@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from torchvision.transforms import CenterCrop
 
 
 class ConvBlock(nn.Module):
@@ -21,36 +22,50 @@ class ConvBlock(nn.Module):
 
 class ExpandingPath(nn.Module):
 
-    def __init__(self, features):
+    def __init__(self, channels, contracting_path):
         super(ExpandingPath, self).__init__()
-        self.features = features
+        self.channels = reversed(channels)
+        self.contr_path = contracting_path
+        self.exp_path = self.get_expanding_path()
 
     def get_expanding_path(self):
         expanding_path_module = nn.ModuleList()
-        for feature in reversed(self.features):
+        for n_channels in self.channels:
             expanding_path_module.append(
-                nn.ConvTranspose2d(feature * 2, feature, kernel_size=(2, 2), stride=(2, 2))
+                nn.ConvTranspose2d(n_channels * 2, n_channels, kernel_size=(2, 2), stride=(2, 2))
             )
             expanding_path_module.append(
-                ConvBlock(feature * 2, feature)
+                ConvBlock(n_channels * 2, n_channels)
             )
         return expanding_path_module
 
+    def forward(self, x, features):
+        for i in range(len(self.path) - 1):
+            x = self.path[i](x)
+            features = self._crop(x, features[i])
+            x = torch.cat([x, features], dim=1)
+            x = self.contr_path[i](x)
+        return x
+
+    def _crop(self, x, features):
+        _, _, height, width = x.shape
+        return CenterCrop([height, width])(features)
+
 
 class ContractingPath(nn.Module):
-    def __init__(self, input_ch, features, pooling_layer):
+    def __init__(self, input_ch, channels, pooling_layer):
         super(ContractingPath, self).__init__()
-        self.features = features
+        self.channels = channels
         self.pooling_layer = pooling_layer
-        self.path = self.get_contracting_path(input_ch)
+        self.contr_path = self.get_contracting_path(input_ch)
 
     def get_contracting_path(self, input_ch):
         contracting_path_module = nn.ModuleList()
-        for feature in self.features:
+        for n_channels in self.channels:
             contracting_path_module.append(
-                ConvBlock(input_ch, feature)
+                ConvBlock(input_ch, n_channels)
             )
-            input_ch = feature
+            input_ch = n_channels
         return contracting_path_module
 
     def forward(self, x):
@@ -64,17 +79,23 @@ class ContractingPath(nn.Module):
 
 class Unet(nn.Module):
 
-    def __init__(self, input_ch=1, output_ch=1, top_features=32, levels=4):
+    def __init__(self, input_ch=1, output_ch=1, top_feature_ch=32, levels=4):
         super(Unet, self).__init__()
-        self.features = torch.logspace(np.log2(top_features), np.log2(top_features) + levels - 1, levels, 2,
+        self.channels = torch.logspace(np.log2(top_feature_ch), np.log2(top_feature_ch) + levels - 1, levels, 2,
                                        dtype=torch.int)[1:]
         self.pooling_layer = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.contracting_path = self.get_contracting_path(input_ch)
-        self.expanding_path = self.get_expanding_path()
+        self.contracting_path = ContractingPath(input_ch, self.channels, self.pooling_layer)
+        self.expanding_path = ExpandingPath(self.channels, self.contracting_path)
 
-        self.bottom = ConvBlock(self.features[-1], self.features[-1] * 2)
-        self.end = nn.Conv2d(self.features[0], output_ch, kernel_size=(1, 1))
+        self.end = nn.Conv2d(self.channels[0], output_ch, kernel_size=(1, 1))
+
+    def forward(self, x):
+        features = self.contracting_path(x)
+        output = self.expanding_path(features[::-1][1:], features[::-1][0]) #reverse
+        output = self.end(output)
+
+        return output
 
 
 if __name__ == '__main__':
