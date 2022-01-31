@@ -79,11 +79,10 @@ class ContractingPath(nn.Module):
 
 class Unet(nn.Module):
 
-    def __init__(self, input_ch=1, output_ch=1, top_feature_ch=64, levels=4):
+    def __init__(self, input_ch=1, output_ch=2, top_feature_ch=64, levels=4):
         super(Unet, self).__init__()
         self.channels = torch.logspace(np.log2(top_feature_ch), np.log2(top_feature_ch) + levels - 1, levels, 2,
                                        dtype=torch.int)
-        print(self.channels)
 
         self.pooling_layer = nn.MaxPool2d(kernel_size=2, stride=2)
 
