@@ -8,7 +8,8 @@ from skimage import color, img_as_float32
 
 
 def binarize(img, threshold=0.5):
-    img[img > threshold] = 1
+    img[img >= threshold] = 1
+    img[img < threshold] = 0
     return img
 
 

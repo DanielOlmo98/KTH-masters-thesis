@@ -12,10 +12,10 @@ import utils
 
 @dataclass
 class CellSegDataset(Dataset):
-    def __init__(self, transform=None, img_size=256):
+    def __init__(self, transform=None, img_size=256, img_dir="01"):
         self.path = "D:/KTH/Thesis/dataset/Fluo-N2DH-GOWT1/"
-        self.img_dir_path = self.path + "01"
-        self.seg_dir_path = self.path + "01_st/SEG"
+        self.img_dir_path = self.path + img_dir
+        self.seg_dir_path = self.path + img_dir + "_ST/SEG"
 
         self.img_list = os.listdir(self.img_dir_path)
         self.seg_list = os.listdir(self.seg_dir_path)
@@ -31,10 +31,10 @@ class CellSegDataset(Dataset):
         seg_path = os.path.join(self.seg_dir_path, self.seg_list[idx])
 
         img = imread(img_path)
-        img = utils.normalize_0_1(img.astype(dtype=np.float16))
-        img = torch.from_numpy(img)
+        img = utils.normalize_0_1(img.astype(dtype=np.float32))
+        img = torch.from_numpy(img).to('cuda')
         seg = utils.binarize(imread(seg_path).astype(dtype=np.int64))
-        seg = torch.from_numpy(seg)
+        seg = torch.from_numpy(seg).to('cuda')
 
         img = self.resize(img.unsqueeze(0))
         seg = self.resize(seg.unsqueeze(0)).squeeze(0)

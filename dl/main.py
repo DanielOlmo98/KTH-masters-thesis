@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
 
+import dl.metrics
 import utils
 from unet_model import Unet
 from dataloader import CellSegDataset
@@ -12,18 +13,16 @@ import torch.nn as nn
 import numpy as np
 
 
-def train_loop(unet, epochs, tb_writer, optimizer, loss_func, batch_size, device):
-    train_loader, test_loader = get_loaders(batch_size)
+def training(unet, epochs, tb_writer, optimizer, loss_func, batch_size, device):
+    train_loader, val_loader = get_loaders(batch_size)
     for epoch in range(epochs):
         running_loss = 0.
         val_running_loss = 0.
-        loop = tqdm(train_loader)
+        train_loop = tqdm(train_loader, colour='white', desc=f'Epoch {epoch:03},   training')
 
-        for i, data in enumerate(loop):
+        for i, data in enumerate(train_loop):
             img, gt = data
-            img = img.to(device)
-            gt = gt.to(device)
-
+            unet.train()
             with torch.cuda.amp.autocast():
                 output = unet(img)
                 loss = loss_func(output, gt)
@@ -32,29 +31,27 @@ def train_loop(unet, epochs, tb_writer, optimizer, loss_func, batch_size, device
             loss.backward()
             optimizer.step()
 
-            loop.set_postfix(loss=loss.item())
-
+            train_loop.set_postfix(train_loss=loss.item())
             running_loss += loss.item()
 
-        for i, data in enumerate(test_loader):
+        val_loop = tqdm(val_loader, colour='green', desc=f'           validating')
+
+        for i, data in enumerate(val_loop):
             val_img, val_gt = data
-            val_img = val_img.to(device)
+            unet.eval()
             with torch.cuda.amp.autocast():
-                val_gt = val_gt.to(device)
                 val_output = unet(val_img)
-            val_loss = loss_func(val_output, val_gt)
+                val_loss = loss_func(val_output, val_gt)
 
-            val_running_loss += val_loss
+            val_loop.set_postfix(val_loss=val_loss.item())
+            val_running_loss += val_loss.item()
 
-        last_loss = running_loss / batch_size
-        val_last_loss = val_running_loss / batch_size
-        print(f"\nEpoch {epoch}, Losses:  Val: {val_last_loss:.2f} | Test {last_loss:.2f}")
+        last_loss = running_loss / train_loop.n
+        val_last_loss = val_running_loss / val_loop.n
         tb_writer.add_scalars("loss per epoch", {
             'train loss': last_loss,
             'val loss': val_last_loss,
         }, epoch)
-        # tb_writer.add_scalar("Epoch train loss", last_loss, epoch)
-        # tb_writer.add_scalar("Epoch val loss", val_last_loss, epoch)
 
 
 def get_loaders(batch_size):
@@ -70,17 +67,19 @@ def get_loaders(batch_size):
 
 
 def train_unet(device, epochs, batch_size):
-    unet = Unet()
-    unet.to(device)
+    unet = Unet().cuda()
+    # unet.to(device)
 
-    loss = nn.BCEWithLogitsLoss()
-    optimizer = optim.SGD(unet.parameters(), lr=1e-3, momentum=0)
+    # loss = nn.BCEWithLogitsLoss()
+    loss = dl.metrics.DiceLoss()
+
+    optimizer = optim.SGD(unet.parameters(), lr=1e-2, momentum=0)
 
     tb_writer = SummaryWriter()
 
-    train_loop(unet, epochs, tb_writer, optimizer, loss, batch_size, device)
+    training(unet, epochs, tb_writer, optimizer, loss, batch_size, device)
 
-    torch.save(unet.state_dict(), 'unet2.pt')
+    torch.save(unet.state_dict(), 'unet3.pt')
 
     tb_writer.close()
 
@@ -92,30 +91,29 @@ def load_unet(filename):
 
 
 def vis_prediction():
-    unet = load_unet('unet2.pt')
+    unet = load_unet('unet3.pt').to('cuda')
     with torch.no_grad():
-        img, seg = CellSegDataset()[1]
-        img = torch.unsqueeze(img, 0).type(torch.FloatTensor)
+        img, seg = CellSegDataset(img_dir="02")[1]
+        img = img.unsqueeze(dim=0)
         prediction = unet(img)
 
-    plot_output(img, prediction)
-
-
-def plot_output(img, prediction):
-    img = np.squeeze(img.cpu().detach().numpy())
     prediction = torch.sigmoid(prediction)
-    prediction = np.squeeze(prediction.cpu().detach().numpy())
-    prediction = utils.symmetric_threshold(prediction, threshold=0.5)
-
-    utils.plot_image_g(img)
-    utils.plot_image_g(prediction[1])
+    prediction = (prediction > 0.5).float().squeeze(dim=0)
+    scores = dl.metrics.dice_calc_multiclass(prediction, seg)
+    print(f"Dice:\n   Background: {scores[0]:.3f}\n   Target: {scores[1]:.3f}")
+    prediction = prediction.cpu().detach().numpy()
+    img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
+    seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
+    utils.plot_image_g(img, title='img')
+    utils.plot_image_g(prediction[1], title='Prediction')
+    utils.plot_image_g(np.abs(seg[1] - prediction[1]), title='Difference')
 
 
 if __name__ == '__main__':
     batch_size = 16
-    epochs = 100
-    device = torch.device('cuda:0')
-    vis_prediction()
+    epochs = 200
+    device = torch.device('cuda')
     # train_unet(device, epochs, batch_size)
+    vis_prediction()
 
     print()
