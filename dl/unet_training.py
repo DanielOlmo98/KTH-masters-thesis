@@ -4,24 +4,26 @@ from tqdm import tqdm
 import dl.metrics
 import utils
 from unet_model import Unet
-from dataloader import CellSegDataset
 from torch.utils.data import DataLoader, random_split
 from torchvision.utils import save_image
 from torch.utils.tensorboard import SummaryWriter
+from dl.dataloader import CamusDataset
 import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 
 
-def training(unet, epochs, tb_writer, optimizer, loss_func, batch_size, device):
-    train_loader, val_loader = get_loaders(batch_size)
+def train_unet(unet, epochs, optimizer, loss_func, batch_size, dataset):
+    tb_writer = SummaryWriter()
+    train_loader, val_loader = get_loaders(batch_size, dataset)
     for epoch in range(epochs):
         running_loss = 0.
         val_running_loss = 0.
-        train_loop = tqdm(train_loader, colour='white', desc=f'Epoch {epoch:03},   training')
+        train_loop = tqdm(train_loader, colour='white', desc=f'Epoch {epoch + 1:03}/{epochs:03},   training')
 
         for i, data in enumerate(train_loop):
             img, gt = data
+            gt = 1 - gt[:, 0:1, :, :]
             unet.train()
             with torch.cuda.amp.autocast():
                 output = unet(img)
@@ -34,10 +36,11 @@ def training(unet, epochs, tb_writer, optimizer, loss_func, batch_size, device):
             train_loop.set_postfix(train_loss=loss.item())
             running_loss += loss.item()
 
-        val_loop = tqdm(val_loader, colour='green', desc=f'           validating')
+        val_loop = tqdm(val_loader, colour='green', desc=f'               validating')
 
         for i, data in enumerate(val_loop):
             val_img, val_gt = data
+            val_gt = 1 - val_gt[:, 0:1, :, :]
             unet.eval()
             with torch.cuda.amp.autocast():
                 val_output = unet(val_img)
@@ -53,9 +56,10 @@ def training(unet, epochs, tb_writer, optimizer, loss_func, batch_size, device):
             'val loss': val_last_loss,
         }, epoch)
 
+    tb_writer.close()
 
-def get_loaders(batch_size):
-    dataset = CellSegDataset()
+
+def get_loaders(batch_size, dataset):
     test_size = len(dataset) // 5
     train_size = len(dataset) - test_size
     train_data, test_data = random_split(dataset, [train_size, test_size],
@@ -66,54 +70,43 @@ def get_loaders(batch_size):
     return train_loader, test_loader
 
 
-def train_unet(device, epochs, batch_size):
-    unet = Unet().cuda()
-    # unet.to(device)
-
-    # loss = nn.BCEWithLogitsLoss()
-    loss = dl.metrics.DiceLoss()
-
-    optimizer = optim.SGD(unet.parameters(), lr=1e-2, momentum=0)
-
-    tb_writer = SummaryWriter()
-
-    training(unet, epochs, tb_writer, optimizer, loss, batch_size, device)
-
-    torch.save(unet.state_dict(), 'unet3.pt')
-
-    tb_writer.close()
-
-
 def load_unet(filename):
     saved_unet = Unet()
     saved_unet.load_state_dict(torch.load(filename))
     return saved_unet
 
 
-def vis_prediction():
-    unet = load_unet('unet3.pt').to('cuda')
+def check_predictions(network, dataset):
+    unet = network.to('cuda')
     with torch.no_grad():
-        img, seg = CellSegDataset(img_dir="02")[1]
+        img, seg = dataset[15]
+        seg = seg[0:1]
         img = img.unsqueeze(dim=0)
         prediction = unet(img)
 
     prediction = torch.sigmoid(prediction)
     prediction = (prediction > 0.5).float().squeeze(dim=0)
-    scores = dl.metrics.dice_calc_multiclass(prediction, seg)
-    print(f"Dice:\n   Background: {scores[0]:.3f}\n   Target: {scores[1]:.3f}")
+    dl.metrics.print_metrics(prediction[0:1], seg)
     prediction = prediction.cpu().detach().numpy()
     img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
     seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
-    utils.plot_image_g(img, title='img')
-    utils.plot_image_g(prediction[1], title='Prediction')
-    utils.plot_image_g(np.abs(seg[1] - prediction[1]), title='Difference')
+    utils.plot_image_g(img, overlay_img=seg, title='img')
+    utils.plot_image_g(prediction[0], title='Prediction')
+    utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
 if __name__ == '__main__':
-    batch_size = 16
-    epochs = 200
-    device = torch.device('cuda')
-    # train_unet(device, epochs, batch_size)
-    vis_prediction()
+    unet = Unet().cuda()
 
-    print()
+    train_settings = {
+        "batch_size": 16,
+        "epochs": 100,
+        "loss_func": dl.metrics.DiceLoss(one_hot_index=0),
+        "optimizer": optim.SGD(unet.parameters(), lr=1e-3, momentum=0),
+        "dataset": CamusDataset()
+    }
+
+    train_unet(unet, **train_settings)
+    torch.save(unet.state_dict(), "unet_camus.pt")
+
+    check_predictions(load_unet('unet_camus.pt'), CamusDataset(set="training/"))
