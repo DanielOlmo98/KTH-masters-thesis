@@ -18,14 +18,23 @@ def dice_score(input, target):
 
 
 class DiceLoss(nn.Module):
-    def __init__(self, one_hot_index=1):
+    def __init__(self, num_classes=1, weights=None):
         super(DiceLoss, self).__init__()
-        self.idx = one_hot_index
+        self.n_classes = num_classes
+        if weights is None:
+            self.weights = torch.ones(self.n_classes, device='cuda:0')
+        else:
+            self.weights = weights
 
     def forward(self, input, target):
-        output = torch.sigmoid(input)
+        softmax = nn.Softmax(dim=1)
+        input = softmax(input)
         # output = (output > 0.5).float()
-        return 1 - dice_score(output[:, self.idx, :, :], target[:, self.idx, :, :])
+        output = torch.zeros(1, device='cuda:0')
+        for n in range(self.n_classes):
+            output += (1 - dice_score(input[:, n, :, :], target[:, n, :, :])).mul(self.weights[n])
+
+        return output
 
 
 def precision(input, target, flatten=True):
@@ -58,7 +67,9 @@ def print_metrics(input, target):
     r = recall(input, target)
 
     f1 = f1_score(input, target)
-    print(f"Dice:\n   Background: {scores[0]:.3f}\n") #  Target: {scores[1]:.3f}")
+    print(f"Dice:   ")  # Target: {scores[1]:.3f}")
+    for score in scores:
+        print(f"   {score:.3f}")
     print(f"Recall: {r:.3f}, Precision: {p:.3f}, F1: {f1:.3f}")
 
 
