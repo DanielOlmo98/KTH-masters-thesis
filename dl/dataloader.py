@@ -9,7 +9,7 @@ import utils
 
 
 class CamusDataset(Dataset):
-    def __init__(self, transforms=None, img_size=256, set="training/"):
+    def __init__(self, transforms=None, img_size=256, set="training/", binary=False):
         self.data_path = utils.get_project_root() + "/dataset/" + set
         self.img_paths, self.seg_paths = self._get_image_paths()
         self.transform_list = [Resize((img_size, img_size))]
@@ -17,6 +17,7 @@ class CamusDataset(Dataset):
             self.transform_list.extend(transforms)
         self.transform = Compose(self.transform_list)
         self.img_size = img_size
+        self.binary = binary
 
     def __len__(self):
         return len(self.img_paths)
@@ -38,6 +39,9 @@ class CamusDataset(Dataset):
         img = self.transform(img)
         seg = self.transform(seg)
         seg = (seg > 0.5).float()
+        if self.binary:
+            seg = seg[0:2]
+            seg[1] = 1 - seg[0]
 
         return img, seg
 

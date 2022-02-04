@@ -56,7 +56,7 @@ def load_images(path=(get_project_root() + '/image/')):
 
 def plot_image_g(img, title=None, ax=None, overlay_img=None, cmap_overlay=None, alpha_overlay=0.2):
     if cmap_overlay is None:
-        cmap_overlay = matplotlib.colors.ListedColormap([(0, 0, 0, 0), "navy", "crimson", "gold"])
+        cmap_overlay = matplotlib.colors.ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
 
     if ax is None:
         plt.figure(figsize=np.divide(img.shape[::-1], 100))
