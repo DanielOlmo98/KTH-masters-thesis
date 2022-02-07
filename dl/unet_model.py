@@ -22,7 +22,7 @@ class ConvBlock(nn.Module):
 
 class ExpandingPath(nn.Module):
 
-    def __init__(self, channels, contracting_path):
+    def __init__(self, channels):
         super(ExpandingPath, self).__init__()
         self.channels = reversed(channels)
         self.exp_path_upconv, self.exp_path_blocks = self.get_expanding_path()
@@ -87,7 +87,7 @@ class Unet(nn.Module):
         self.pooling_layer = nn.MaxPool2d(kernel_size=2, stride=2)
 
         self.contracting_path = ContractingPath(input_ch, self.channels, self.pooling_layer)
-        self.expanding_path = ExpandingPath(self.channels[:-1], self.contracting_path)
+        self.expanding_path = ExpandingPath(self.channels[:-1])
 
         self.end = nn.Conv2d(self.channels[0], output_ch, kernel_size=(1, 1), padding='same')
 

@@ -5,6 +5,10 @@ from utils import plot_image_g, binarize
 from scipy import interpolate, ndimage, special, signal, misc
 import cv2
 
+'''
+this is a mess
+'''
+
 
 # https://ieeexplore.ieee.org/document/4228562
 # https://ieeexplore.ieee.org/document/7967056

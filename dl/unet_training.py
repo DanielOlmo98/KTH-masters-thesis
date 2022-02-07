@@ -83,7 +83,7 @@ def load_unet(filename):
 def check_predictions(network, dataset):
     unet = network.to('cuda')
     with torch.no_grad():
-        img, seg = dataset[74]
+        img, seg = dataset[29]
         img = img.unsqueeze(dim=0)
         prediction = unet(img)
 
@@ -93,7 +93,7 @@ def check_predictions(network, dataset):
     prediction = prediction.cpu().detach().numpy()
     img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
     seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
-    utils.plot_image_g(img, overlay_img=seg[0]/2 + prediction[1], title='img')
+    utils.plot_image_g(img, overlay_img=seg[1], title='Ground truth')
     # utils.plot_image_g(seg[0])
     # utils.plot_image_g(seg[1])
     '''
@@ -110,11 +110,12 @@ if __name__ == '__main__':
 
     train_settings = {
         "batch_size": 24,
-        "epochs": 100,
-        "loss_func": dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.1, 10], device='cuda:0')),
+        "epochs": 30,
+        "loss_func": dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.3, 2], device='cuda:0'),
+                                         f1_weight=0.3),
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
-        "optimizer": optim.AdamW(unet.parameters(), lr=1e-4),
+        "optimizer": optim.Adam(unet.parameters(), lr=5e-5, weight_decay=1e-6),
         "dataset": CamusDataset()
     }
 
@@ -124,8 +125,8 @@ if __name__ == '__main__':
     regularization?
     '''
 
-    check_predictions(load_unet("unet_weighted_dice_adam2.pt"), CamusDataset(set="training/", binary=True))
+    check_predictions(load_unet("unet_weighted_t2.pt"), CamusDataset(set="training/", binary=True))
     # train_unet(unet, **train_settings)
-    # torch.save(unet.state_dict(), "unet_weighted_dice_adam2.pt")
+    # torch.save(unet.state_dict(), "unet_weighted_t2.pt")
     #
     # check_predictions(unet, CamusDataset(set="training/", binary=True))

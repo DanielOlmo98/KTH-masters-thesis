@@ -18,9 +18,10 @@ def dice_score(input, target):
 
 
 class DiceLoss(nn.Module):
-    def __init__(self, num_classes=1, weights=None):
+    def __init__(self, num_classes=1, weights=None, f1_weight=True):
         super(DiceLoss, self).__init__()
         self.n_classes = num_classes
+        self.f1_weight = f1_weight
         if weights is None:
             self.weights = torch.ones(self.n_classes, device='cuda:0')
         else:
@@ -29,10 +30,17 @@ class DiceLoss(nn.Module):
     def forward(self, input, target):
         softmax = nn.Softmax(dim=1)
         input = softmax(input)
-        # output = (output > 0.5).float()
         output = torch.zeros(1, device='cuda:0')
         for n in range(self.n_classes):
-            output += (1 - dice_score(input[:, n, :, :], target[:, n, :, :])).mul(self.weights[n])
+            # calculate dice score for class and mult with weight
+            score = 1 - dice_score(input[:, n, :, :], target[:, n, :, :]).mul(self.weights[n])
+
+            if self.f1_weight is not None:
+                # multiply dice score with f1
+                score += 1 - f1_score((input[:, n, :, :] > 0.5).float(), target[:, n, :, :]).mul(
+                    self.f1_weight).mul(self.weights[n])
+
+            output += score
 
         return output
 
@@ -62,15 +70,17 @@ def f1_score(input, target):
 
 
 def print_metrics(input, target):
-    scores = dice_calc_multiclass(input, target)
-    p = precision(input, target)
-    r = recall(input, target)
-
-    f1 = f1_score(input, target)
+    dice_scores = dice_calc_multiclass(input, target)
     print(f"Dice:   ")  # Target: {scores[1]:.3f}")
-    for score in scores:
+    for score in dice_scores:
         print(f"   {score:.3f}")
-    print(f"Recall: {r:.3f}, Precision: {p:.3f}, F1: {f1:.3f}")
+
+    for n in range(input.size()[0]):
+        p = precision(input[n], target[n])
+        r = recall(input[n], target[n])
+        f1 = f1_score(input[n], target[n])
+
+        print(f"Recall: {r:.3f}, Precision: {p:.3f}, F1: {f1:.3f}")
 
 
 if __name__ == '__main__':
