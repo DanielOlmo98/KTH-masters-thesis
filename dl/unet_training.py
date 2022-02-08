@@ -14,11 +14,12 @@ import torch.nn as nn
 import numpy as np
 
 
-def train_unet(unet, epochs, optimizer, loss_func, batch_size, dataset):
+def train_unet(unet, epochs, optimizer, loss_func, batch_size, dataset, savename):
     tb_writer = SummaryWriter()
     train_loader, val_loader = get_loaders(batch_size, dataset)
     bar = Fore.WHITE + '{l_bar}{bar}' + Fore.WHITE + '| {n_fmt}/{total_fmt} [{elapsed}{postfix}]'
     bar_val = Fore.GREEN + '{l_bar}{bar}' + Fore.GREEN + '| {n_fmt}/{total_fmt} [{elapsed}  {postfix}]'
+    val_min_loss = 9
     for epoch in range(epochs):
         running_loss = 0.
         val_running_loss = 0.
@@ -53,11 +54,17 @@ def train_unet(unet, epochs, optimizer, loss_func, batch_size, dataset):
             val_loop.set_postfix(val_loss=val_loss.item())
             val_running_loss += val_loss.item()
 
-        last_loss = running_loss / train_loop.n
-        val_last_loss = val_running_loss / val_loop.n
+        train_loss_epoch = running_loss / train_loop.n
+        val_loss_epoch = val_running_loss / val_loop.n
+
+        if val_loss_epoch < val_min_loss:
+            torch.save(unet.state_dict(), savename)
+            print("\nSaving Model")
+            val_min_loss = val_loss_epoch
+
         tb_writer.add_scalars("loss per epoch", {
-            'train loss': last_loss,
-            'val loss': val_last_loss,
+            'train loss': train_loss_epoch,
+            'val loss': val_loss_epoch,
         }, epoch)
 
     tb_writer.close()
@@ -80,13 +87,15 @@ def load_unet(filename):
     return saved_unet
 
 
-def check_predictions(network, dataset):
+def check_predictions(network, dataset, loss):
     unet = network.to('cuda')
     with torch.no_grad():
-        img, seg = dataset[29]
+        img, seg = dataset[19]
         img = img.unsqueeze(dim=0)
         prediction = unet(img)
 
+    loss_score = loss(prediction, seg.unsqueeze(dim=0)).item()
+    print(f"Loss: {loss_score:.3f}")
     prediction = torch.softmax(prediction, dim=1)
     prediction = (prediction > 0.5).float().squeeze(dim=0)
     dl.metrics.print_metrics(prediction, seg)
@@ -107,16 +116,20 @@ def check_predictions(network, dataset):
 
 if __name__ == '__main__':
     unet = Unet().cuda()
+    # loss_func = dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.3, 3], device='cuda:0'), f1_weight=0.3)
+    class_weights = torch.tensor([0.3, 3], device='cuda:0')
+    loss_func = dl.metrics.FscoreLoss(num_classes=2, class_weights=class_weights, f1_weight=0.7)
 
+    filename = "unet_weighted_t5.pt"
     train_settings = {
         "batch_size": 24,
-        "epochs": 30,
-        "loss_func": dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.3, 2], device='cuda:0'),
-                                         f1_weight=0.3),
+        "epochs": 100,
+        "loss_func": loss_func,
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
-        "optimizer": optim.Adam(unet.parameters(), lr=5e-5, weight_decay=1e-6),
-        "dataset": CamusDataset()
+        "optimizer": optim.Adam(unet.parameters(), lr=1e-4, weight_decay=5e-5),
+        "dataset": CamusDataset(binary=True),
+        "savename": filename
     }
 
     # unet = load_unet("unet_camus_bce.pt").cuda()
@@ -125,8 +138,5 @@ if __name__ == '__main__':
     regularization?
     '''
 
-    check_predictions(load_unet("unet_weighted_t2.pt"), CamusDataset(set="training/", binary=True))
-    # train_unet(unet, **train_settings)
-    # torch.save(unet.state_dict(), "unet_weighted_t2.pt")
-    #
-    # check_predictions(unet, CamusDataset(set="training/", binary=True))
+    train_unet(unet, **train_settings)
+    check_predictions(load_unet(filename), CamusDataset(set="training/", binary=True), loss_func)
