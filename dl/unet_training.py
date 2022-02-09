@@ -68,10 +68,40 @@ def train_unet(unet, epochs, optimizer, loss_func, batch_size, dataset, savename
         }, epoch)
 
     tb_writer.close()
+    evaluate_unet(unet, val_loader, savename)
 
 
-def get_loaders(batch_size, dataset):
-    test_size = len(dataset) // 5
+def evaluate_unet(unet, val_loader, savename):
+    unet.eval()
+    val_loader = iter(val_loader)
+    next_batch = next(val_loader)
+    n_classes = next_batch[1].size()[1]
+    metric_lists = [[] for _ in range(n_classes)]  # one list per class
+    try:
+        while True:
+            with torch.no_grad():
+                img, seg = next_batch
+                prediction = torch.softmax(unet(img), dim=1)
+
+            for n in range(n_classes):
+                # append 1x3 tensor per class containing precision recall and f1 for the class
+                metric_lists[n].append(dl.metrics.get_f1_metrics(prediction.unsqueeze(dim=0), seg.unsqueeze(dim=0)))
+
+            next_batch = next(val_loader)
+
+    except StopIteration:
+        metric_lists = torch.FloatTensor(metric_lists)
+        with open(savename + "eval_metrics.txt", "w") as file:
+            for n in range(n_classes):
+                p = torch.mean(metric_lists[n, :, 0])
+                r = torch.mean(metric_lists[n, :, 1])
+                f1 = torch.mean(metric_lists[n, :, 2])
+                file.write(f"Class {n + 1}:\n  Precision: {p:.3f}, Recall: {r:.3f}, F1: {f1:.3f}\n")
+        pass
+
+
+def get_loaders(batch_size, dataset, split=5):
+    test_size = len(dataset) // split
     train_size = len(dataset) - test_size
     train_data, test_data = random_split(dataset, [train_size, test_size],
                                          generator=torch.manual_seed(1))
@@ -81,8 +111,8 @@ def get_loaders(batch_size, dataset):
     return train_loader, test_loader
 
 
-def load_unet(filename):
-    saved_unet = Unet()
+def load_unet(filename, channels=2):
+    saved_unet = Unet(output_ch=channels).cuda()
     saved_unet.load_state_dict(torch.load(filename))
     return saved_unet
 
@@ -103,8 +133,7 @@ def check_predictions(network, dataset, loss):
     img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
     seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
     utils.plot_image_g(img, overlay_img=seg[1], title='Ground truth')
-    # utils.plot_image_g(seg[0])
-    # utils.plot_image_g(seg[1])
+    utils.plot_image_g(prediction[1] + 2 * prediction[2] + 3 * prediction[3])
     '''
     green: overlap
     orange: missed
@@ -115,20 +144,22 @@ def check_predictions(network, dataset, loss):
 
 
 if __name__ == '__main__':
-    unet = Unet().cuda()
     # loss_func = dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.3, 3], device='cuda:0'), f1_weight=0.3)
-    class_weights = torch.tensor([0.3, 3], device='cuda:0')
-    loss_func = dl.metrics.FscoreLoss(num_classes=2, class_weights=class_weights, f1_weight=0.7)
+    class_weights = torch.tensor([0.3, 1, 1, 1], device='cuda:0')
+    loss_func = dl.metrics.FscoreLoss(class_weights=class_weights, f1_weight=0.6)
 
-    filename = "unet_weighted_t5.pt"
+    filename = "unet_multiclass.pt"
+    unet = Unet(output_ch=4).cuda()
+    # unet = load_unet("unet_weighted_t5.pt")
+
     train_settings = {
         "batch_size": 24,
         "epochs": 100,
         "loss_func": loss_func,
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
-        "optimizer": optim.Adam(unet.parameters(), lr=1e-4, weight_decay=5e-5),
-        "dataset": CamusDataset(binary=True),
+        "optimizer": optim.Adam(unet.parameters(), lr=5e-5, weight_decay=5e-5),
+        "dataset": CamusDataset(binary=False),
         "savename": filename
     }
 
@@ -139,4 +170,4 @@ if __name__ == '__main__':
     '''
 
     train_unet(unet, **train_settings)
-    check_predictions(load_unet(filename), CamusDataset(set="training/", binary=True), loss_func)
+    check_predictions(load_unet(filename, channels=4), CamusDataset(set="training/", binary=False), loss_func)

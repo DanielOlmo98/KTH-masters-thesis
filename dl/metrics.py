@@ -58,10 +58,10 @@ def f1_score(input, target, beta):
 
 
 class FscoreLoss(nn.Module):
-    def __init__(self, class_weights, f1_weight, num_classes=1):
+    def __init__(self, class_weights, f1_weight):
         super(FscoreLoss, self).__init__()
-        self.num_classes = num_classes
         self.class_weights = class_weights
+        self.num_classes = len(class_weights)
         self.f1_weight = f1_weight
 
     def forward(self, input, target):
@@ -69,18 +69,23 @@ class FscoreLoss(nn.Module):
         softmax = nn.Softmax(dim=1)
         input = softmax(input)
         for n in range(self.num_classes):
-            score += (1 - f1_score(input[:, n, :, :], target[:, n, :, :], self.f1_weight)) * (self.class_weights[n])
+            score += (1 - f1_score(input.unsqueeze(dim=0), target.unsqueeze(dim=0), self.f1_weight)) * (
+            self.class_weights[n])
 
         return score
 
 
 def print_metrics(input, target):
     for n in range(input.size()[0]):
-        p = precision(input[n], target[n])
-        r = recall(input[n], target[n])
-        f1 = f1_score(input[n], target[n], 1)
+        p, r, f1 = get_f1_metrics(input[n], target[n])
+        print(f"Class {n + 1}:\n  Recall: {r:.3f}, Precision: {p:.3f}, F1: {f1:.3f}")
 
-        print(f"Recall: {r:.3f}, Precision: {p:.3f}, F1: {f1:.3f}")
+
+def get_f1_metrics(input, target):
+    p = precision(input, target)
+    r = recall(input, target)
+    f1 = f1_score(input, target, 1)
+    return p, r, f1
 
 
 if __name__ == '__main__':
