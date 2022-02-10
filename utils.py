@@ -3,6 +3,8 @@ import SimpleITK as sitk
 import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.ndimage.morphology import binary_erosion
+from matplotlib.colors import ListedColormap
 from skimage.io import imread
 from skimage import color, img_as_float32
 
@@ -56,7 +58,7 @@ def load_images(path=(get_project_root() + '/image/')):
 
 def plot_image_g(img, title=None, ax=None, overlay_img=None, cmap_overlay=None, alpha_overlay=0.2):
     if cmap_overlay is None:
-        cmap_overlay = matplotlib.colors.ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
+        cmap_overlay = ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
 
     if ax is None:
         plt.figure(figsize=np.divide(img.shape[::-1], 100))
@@ -72,6 +74,25 @@ def plot_image_g(img, title=None, ax=None, overlay_img=None, cmap_overlay=None, 
         if title is not None:
             ax.set_title(title)
         return ax
+
+
+def plot_onehot_seg(img, seg, gt=None, alpha_overlay=0.2, title=None):
+    colors = ['none', 'gold', 'lime', 'blue', 'red']
+    plt.imshow(img, cmap='gray')
+    for n in range(seg.shape[0]):
+        plt.imshow(seg[n], alpha=alpha_overlay, cmap=ListedColormap(['none', colors[n]]))
+        if gt is not None:
+            plt.imshow(get_outline(gt[n]), alpha=0.7, cmap=ListedColormap(['none', colors[n]]))
+
+    if title is not None:
+        plt.title(title)
+    plt.show()
+    return
+
+
+def get_outline(seg):
+    eroded_seg = binary_erosion(seg)
+    return seg - eroded_seg
 
 
 def heightmap(array, ax=None, title=None, elev=None, azim=None):

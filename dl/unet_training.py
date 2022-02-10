@@ -120,7 +120,7 @@ def load_unet(filename, channels=2):
 def check_predictions(network, dataset, loss):
     unet = network.to('cuda')
     with torch.no_grad():
-        img, seg = dataset[19]
+        img, seg = dataset[15]
         img = img.unsqueeze(dim=0)
         prediction = unet(img)
 
@@ -132,25 +132,25 @@ def check_predictions(network, dataset, loss):
     prediction = prediction.cpu().detach().numpy()
     img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
     seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
-    utils.plot_image_g(img, overlay_img=seg[1], title='Ground truth')
-    utils.plot_image_g(prediction[1] + 2 * prediction[2] + 3 * prediction[3])
+    utils.plot_onehot_seg(img, seg, title='Ground Truth')
+    utils.plot_onehot_seg(img, prediction, title='Prediction')
+    utils.plot_onehot_seg(img, prediction, gt=seg)
     '''
     green: overlap
     orange: missed
     red: segmented background
     '''
-    utils.plot_image_g(img, overlay_img=prediction[1] + 2 * seg[1], title='Prediction')
     # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
 if __name__ == '__main__':
     # loss_func = dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.3, 3], device='cuda:0'), f1_weight=0.3)
-    class_weights = torch.tensor([0.3, 1, 1, 1], device='cuda:0')
+    class_weights = torch.tensor([0.2, 1, 1, 2], device='cuda:0')
+    n_ch = class_weights.size()[0]
     loss_func = dl.metrics.FscoreLoss(class_weights=class_weights, f1_weight=0.6)
-
-    filename = "unet_multiclass.pt"
-    unet = Unet(output_ch=4).cuda()
-    # unet = load_unet("unet_weighted_t5.pt")
+    filename = "unet_multiclass2.pt"
+    # unet = Unet(output_ch=n_ch).cuda()
+    unet = load_unet("unet_multiclass2.pt", channels=n_ch)
 
     train_settings = {
         "batch_size": 24,
@@ -158,7 +158,7 @@ if __name__ == '__main__':
         "loss_func": loss_func,
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
-        "optimizer": optim.Adam(unet.parameters(), lr=5e-5, weight_decay=5e-5),
+        "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-4),
         "dataset": CamusDataset(binary=False),
         "savename": filename
     }
@@ -166,8 +166,9 @@ if __name__ == '__main__':
     # unet = load_unet("unet_camus_bce.pt").cuda()
 
     '''
-    regularization?
+    TODO:
+        -data augmentation
     '''
 
     train_unet(unet, **train_settings)
-    check_predictions(load_unet(filename, channels=4), CamusDataset(set="training/", binary=False), loss_func)
+    check_predictions(load_unet(filename, channels=n_ch), CamusDataset(set="training/", binary=False), loss_func)
