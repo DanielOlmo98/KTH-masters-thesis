@@ -16,7 +16,7 @@ def binarize(img, threshold=0.5):
 
 
 def normalize_0_1(img):
-    return (img - np.min(img)) / (np.max(img) - np.min(img))
+    return (img - np.min(img)) / (np.max(img) - np.min(img) + 1e-6)
 
 
 def normalize_neg1_to_1(img):
@@ -56,7 +56,7 @@ def load_images(path=(get_project_root() + '/image/')):
     return images
 
 
-def plot_image_g(img, title=None, ax=None, overlay_img=None, cmap_overlay=None, alpha_overlay=0.2):
+def plot_image_g(img, overlay_img=None, title=None, ax=None, cmap_overlay=None, alpha_overlay=0.2):
     if cmap_overlay is None:
         cmap_overlay = ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
 
@@ -76,13 +76,13 @@ def plot_image_g(img, title=None, ax=None, overlay_img=None, cmap_overlay=None, 
         return ax
 
 
-def plot_onehot_seg(img, seg, gt=None, alpha_overlay=0.2, title=None):
+def plot_onehot_seg(img, seg, outline=None, alpha_overlay=0.2, title=None):
     colors = ['none', 'gold', 'lime', 'blue', 'red']
     plt.imshow(img, cmap='gray')
     for n in range(seg.shape[0]):
         plt.imshow(seg[n], alpha=alpha_overlay, cmap=ListedColormap(['none', colors[n]]))
-        if gt is not None:
-            plt.imshow(get_outline(gt[n]), alpha=0.7, cmap=ListedColormap(['none', colors[n]]))
+        if outline is not None:
+            plt.imshow(get_outline(outline[n]), alpha=0.7, cmap=ListedColormap(['none', colors[n]]))
 
     if title is not None:
         plt.title(title)

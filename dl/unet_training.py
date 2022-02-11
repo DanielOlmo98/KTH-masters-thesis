@@ -12,50 +12,27 @@ from colorama import Fore, Style
 import torch.optim as optim
 import torch.nn as nn
 import numpy as np
+from torch.profiler import profile, record_function, ProfilerActivity
 
 
 def train_unet(unet, epochs, optimizer, loss_func, batch_size, dataset, savename):
     tb_writer = SummaryWriter()
     train_loader, val_loader = get_loaders(batch_size, dataset)
+    val_min_loss = 9
     bar = Fore.WHITE + '{l_bar}{bar}' + Fore.WHITE + '| {n_fmt}/{total_fmt} [{elapsed}{postfix}]'
     bar_val = Fore.GREEN + '{l_bar}{bar}' + Fore.GREEN + '| {n_fmt}/{total_fmt} [{elapsed}  {postfix}]'
-    val_min_loss = 9
     for epoch in range(epochs):
-        running_loss = 0.
-        val_running_loss = 0.
+
         train_loop = tqdm(train_loader, colour='white', desc=f'Epoch {epoch + 1:03}/{epochs:03},   training',
-                          bar_format=bar)
+                          bar_format=bar, leave=True, position=0)
+        val_loop = tqdm(val_loader, colour='green', desc=f'               validating', bar_format=bar_val, leave=True,
+                        position=0)
+        train_loss_epoch = train(optimizer, loss_func, train_loop)
+        del train_loop
 
-        torch.enable_grad()
-        unet.train()
-        for i, data in enumerate(train_loop):
-            img, gt = data
-            with torch.cuda.amp.autocast():
-                output = unet(img)
-                loss = loss_func(output, gt)
+        val_loss_epoch = val(loss_func, val_loop)
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            train_loop.set_postfix(train_loss=loss.item())
-            running_loss += loss.item()
-
-        val_loop = tqdm(val_loader, colour='green', desc=f'               validating', bar_format=bar_val)
-
-        unet.eval()
-        torch.no_grad()
-        for i, data in enumerate(val_loop):
-            val_img, val_gt = data
-            with torch.cuda.amp.autocast():
-                val_output = unet(val_img)
-                val_loss = loss_func(val_output, val_gt)
-
-            val_loop.set_postfix(val_loss=val_loss.item())
-            val_running_loss += val_loss.item()
-
-        train_loss_epoch = running_loss / train_loop.n
-        val_loss_epoch = val_running_loss / val_loop.n
+        del val_loop
 
         if val_loss_epoch < val_min_loss:
             torch.save(unet.state_dict(), savename)
@@ -69,6 +46,42 @@ def train_unet(unet, epochs, optimizer, loss_func, batch_size, dataset, savename
 
     tb_writer.close()
     evaluate_unet(unet, val_loader, savename)
+
+
+def train(optimizer, loss_func, train_loop):
+    running_loss = 0.
+    torch.enable_grad()
+    unet.train()
+    for _, data in enumerate(train_loop):
+        img, gt = data
+        del data
+        with torch.cuda.amp.autocast():
+            output = unet(img)
+            optimizer.zero_grad()
+            loss = loss_func(output, gt)
+
+        loss.backward()
+        optimizer.step()
+
+        train_loop.set_postfix(train_loss=loss.item())
+        running_loss += loss.item()
+    return running_loss / train_loop.n
+
+
+def val(loss_func, val_loop):
+    val_running_loss = 0.
+    unet.eval()
+    torch.no_grad()
+    for _, data in enumerate(val_loop):
+        val_img, val_gt = data
+        del data
+        with torch.cuda.amp.autocast():
+            val_output = unet(val_img)
+            val_loss = loss_func(val_output, val_gt)
+
+        val_loop.set_postfix(val_loss=val_loss.item())
+        val_running_loss += val_loss.item()
+    return val_running_loss / val_loop.n
 
 
 def evaluate_unet(unet, val_loader, savename):
@@ -85,7 +98,7 @@ def evaluate_unet(unet, val_loader, savename):
 
             for n in range(n_classes):
                 # append 1x3 tensor per class containing precision recall and f1 for the class
-                metric_lists[n].append(dl.metrics.get_f1_metrics(prediction.unsqueeze(dim=0), seg.unsqueeze(dim=0)))
+                metric_lists[n].append(dl.metrics.get_f1_metrics(prediction[:, n, :, :], seg[:, n, :, :]))
 
             next_batch = next(val_loader)
 
@@ -134,7 +147,7 @@ def check_predictions(network, dataset, loss):
     seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
     utils.plot_onehot_seg(img, seg, title='Ground Truth')
     utils.plot_onehot_seg(img, prediction, title='Prediction')
-    utils.plot_onehot_seg(img, prediction, gt=seg)
+    utils.plot_onehot_seg(img, prediction, outline=seg)
     '''
     green: overlap
     orange: missed
@@ -145,21 +158,21 @@ def check_predictions(network, dataset, loss):
 
 if __name__ == '__main__':
     # loss_func = dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.3, 3], device='cuda:0'), f1_weight=0.3)
-    class_weights = torch.tensor([0.2, 1, 1, 2], device='cuda:0')
+    class_weights = torch.tensor([0.1, 1, 1, 2], device='cuda:0')
     n_ch = class_weights.size()[0]
     loss_func = dl.metrics.FscoreLoss(class_weights=class_weights, f1_weight=0.6)
-    filename = "unet_multiclass2.pt"
+    filename = "unet_multiclass3.pt"
     # unet = Unet(output_ch=n_ch).cuda()
-    unet = load_unet("unet_multiclass2.pt", channels=n_ch)
+    unet = load_unet("unet_multiclass3.pt", channels=n_ch)
 
     train_settings = {
-        "batch_size": 24,
-        "epochs": 100,
+        "batch_size": 4,
+        "epochs": 3,
         "loss_func": loss_func,
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
         "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-4),
-        "dataset": CamusDataset(binary=False),
+        "dataset": CamusDataset(binary=False, augment=True),
         "savename": filename
     }
 
@@ -168,7 +181,10 @@ if __name__ == '__main__':
     '''
     TODO:
         -data augmentation
+        -profiling
     '''
-
-    train_unet(unet, **train_settings)
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,
+                 record_shapes=True) as prof:
+        train_unet(unet, **train_settings)
     check_predictions(load_unet(filename, channels=n_ch), CamusDataset(set="training/", binary=False), loss_func)
+    print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))

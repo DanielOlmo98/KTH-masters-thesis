@@ -1,22 +1,25 @@
 import os
+
+import albumentations.pytorch
 import numpy as np
 import torch
+import utils
+import albumentations as A
 from torch.utils.data import Dataset, DataLoader
 from skimage.io import imread
 from torchvision.transforms import Resize, Compose
 from torch.nn.functional import one_hot
-import utils
 
 
 class CamusDataset(Dataset):
-    def __init__(self, transforms=None, img_size=256, set="training/", binary=False):
+    def __init__(self, augment=False, img_size=256, set="training/", binary=False):
         self.data_path = utils.get_project_root() + "/dataset/" + set
         self.img_paths, self.seg_paths = self._get_image_paths()
-        self.transform_list = [Resize((img_size, img_size))]
-        if transforms is not None:
-            self.transform_list.extend(transforms)
-        self.transform = Compose(self.transform_list)
-        self.img_size = img_size
+        self.transform_list = [A.Resize(img_size, img_size)]
+        if augment:
+            self.transform_list.extend(get_transforms())
+        self.transform_list.extend([A.pytorch.ToTensorV2()])
+        self.transform = A.Compose(self.transform_list)
         self.binary = binary
 
     def __len__(self):
@@ -24,26 +27,25 @@ class CamusDataset(Dataset):
 
     def __getitem__(self, idx):
         img = imread(self.img_paths[idx])
-        # img = resize(img, (1, self.img_size, self.img_size))
-        img = utils.normalize_0_1(img.astype(dtype=np.float32))
-        img = torch.from_numpy(img).to('cuda')
-
         seg = imread(self.seg_paths[idx])
-        seg = torch.from_numpy(seg.squeeze().astype(dtype=np.int64)).to('cuda')
-        seg = one_hot(seg, num_classes=4).permute(2, 0, 1)
-        seg = seg.type(torch.float32)
-        # seg = downscale_local_mean(seg, (1, 5, 4))
-        # seg = resize(seg.squeeze(), (self.img_size, self.img_size))
-        # seg = utils.binarize(seg.astype(dtype=np.int64))
+        img = img.astype(dtype=np.float32)
 
-        img = self.transform(img)
-        seg = self.transform(seg)
-        seg = (seg > 0.5).float()
+        augmented = self.transform(image=img[0], mask=seg[0])
+
+        # seg = torch.from_numpy(seg.squeeze().astype(dtype=np.int64)).to('cuda')
+        img = augmented['image']
+        seg = one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1)
+        del augmented
+        # seg = seg.type(torch.float32)
+        # img = self.transform(img)
+        # seg = self.transform(seg)
+        # seg = (seg > 0.5).float()
+
         if self.binary:
             seg = seg[0:2]
             seg[1] = 1 - seg[0]
 
-        return img, seg
+        return img.to('cuda').div(255.), seg.to('cuda')
 
     def _get_image_paths(self):
         gt_paths = []
@@ -58,11 +60,19 @@ class CamusDataset(Dataset):
         return img_paths, gt_paths
 
 
-if __name__ == '__main__':
-    from torchvision import transforms
+def get_transforms():
+    return [
+        # A.Normalize(max_pixel_value=1.0),
+        A.HorizontalFlip(p=0.5),
+        A.ElasticTransform(p=1, alpha=100, sigma=15, alpha_affine=6, border_mode=1),
+        A.RandomBrightnessContrast(p=0.7, brightness_by_max=False),
 
-    t = transforms.RandomCrop((100, 100))
-    t2 = transforms.RandomCrop((70, 100))
-    loader = DataLoader(CamusDataset(transforms=[t, t2]), batch_size=1)
-    img, seg = next(iter(loader))
-    utils.plot_image_g(img[0][0].cpu().numpy(), overlay_img=seg[0][1].cpu().numpy())
+    ]
+
+
+if __name__ == '__main__':
+    loader = DataLoader(CamusDataset(augment=True), batch_size=6)
+    iter_data = iter(loader)
+    for _ in range(6):
+        img, seg = next(iter_data)
+        utils.plot_onehot_seg(img.cpu().numpy()[0, 0, :, :], seg=seg.cpu().numpy()[0])
