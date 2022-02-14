@@ -7,7 +7,7 @@ from unet_model import Unet
 from torch.utils.data import DataLoader, random_split
 from torchvision.utils import save_image
 from torch.utils.tensorboard import SummaryWriter
-from dl.dataloader import CamusDataset
+from dl.dataloader import CamusDataset, CamusDatasetPNG
 from colorama import Fore, Style
 import torch.optim as optim
 import torch.nn as nn
@@ -172,7 +172,7 @@ if __name__ == '__main__':
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
         "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-4),
-        "dataset": CamusDataset(binary=False, augment=True),
+        "dataset": CamusDatasetPNG(),
         "savename": filename
     }
 
