@@ -167,7 +167,7 @@ if __name__ == '__main__':
 
     train_settings = {
         "batch_size": 4,
-        "epochs": 3,
+        "epochs": 1,
         "loss_func": loss_func,
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
@@ -183,8 +183,7 @@ if __name__ == '__main__':
         -data augmentation
         -profiling
     '''
-    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,
-                 record_shapes=True) as prof:
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, use_cuda=True) as prof:
         train_unet(unet, **train_settings)
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
     check_predictions(load_unet(filename, channels=n_ch), CamusDataset(set="training/", binary=False), loss_func)
-    print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))

@@ -4,17 +4,60 @@ import albumentations.pytorch
 import numpy as np
 import torch
 import utils
+import h5py
+import cv2
+import kornia
 import albumentations as A
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from skimage.io import imread
+from skimage.io import imread, imsave
 from torchvision.transforms import Resize, Compose
 from torch.nn.functional import one_hot
+
+
+class CamusDatasetPNG(Dataset):
+    def __init__(self):
+        self.imgs, self.segs = self.load_dataset()
+
+    def __len__(self):
+        return len(self.imgs)
+
+    def __getitem__(self, idx):
+        img = self.imgs[idx]
+        seg = self.segs[idx]
+        transform = nn.Sequential(kornia.augmentation.RandomElasticTransform(same_on_batch=True))
+        tf = transform(img)
+        tf2 = transform(seg)
+        utils.plot_image_g(kornia.utils.image.tensor_to_image(tf[0]))
+        utils.plot_image_g(kornia.utils.image.tensor_to_image(tf2[0]))
+        print()
+
+    def load_dataset(self):
+        data_path = utils.get_project_root() + "/dataset/camus_png/"
+        img_paths, seg_paths = get_image_paths(data_path, extension='.png')
+        img_list = []
+        seg_list = []
+        gpu = torch.device('cuda:0')
+        for img_p, seg_p in zip(img_paths, seg_paths):
+            img = cv2.imread(img_p, 0)
+            img_list.append(kornia.utils.image_to_tensor(img).to(gpu).type(torch.float32).div(255.))
+            seg = cv2.imread(seg_p, 0)
+            seg = kornia.utils.image_to_tensor(seg)
+            seg_list.append(kornia.utils.one_hot(seg.type(torch.int64), 4).type(torch.int64).to(gpu))
+
+        return img_list, seg_list
+
+
+class DataAugmentation(nn.Module):
+    def __init__(self):
+        super(DataAugmentation, self).__init__()
+        kornia.geometry.elastic_transform2d()
 
 
 class CamusDataset(Dataset):
     def __init__(self, augment=False, img_size=256, set="training/", binary=False):
         self.data_path = utils.get_project_root() + "/dataset/" + set
-        self.img_paths, self.seg_paths = self._get_image_paths()
+        self.img_paths, self.seg_paths = get_image_paths(self.data_path)
         self.transform_list = [A.Resize(img_size, img_size)]
         if augment:
             self.transform_list.extend(get_transforms())
@@ -47,17 +90,18 @@ class CamusDataset(Dataset):
 
         return img.to('cuda').div(255.), seg.to('cuda')
 
-    def _get_image_paths(self):
-        gt_paths = []
-        img_paths = []
-        for patient_folder in os.listdir(self.data_path):
-            image_paths = os.listdir(self.data_path + patient_folder)
-            gt_path = [self.data_path + patient_folder + "/" + file for file in image_paths if file[-7:] == "_gt.mhd"]
-            img_path = [file[:-7] + ".mhd" for file in gt_path]
-            gt_paths.extend(gt_path)
-            img_paths.extend(img_path)
 
-        return img_paths, gt_paths
+def get_image_paths(data_path, extension=".mhd"):
+    gt_paths = []
+    img_paths = []
+    for patient_folder in os.listdir(data_path):
+        image_paths = os.listdir(data_path + patient_folder)
+        gt_path = [data_path + patient_folder + "/" + file for file in image_paths if file[-7:] == "_gt" + extension]
+        img_path = [file[:-7] + extension for file in gt_path]
+        gt_paths.extend(gt_path)
+        img_paths.extend(img_path)
+
+    return img_paths, gt_paths
 
 
 def get_transforms():
@@ -70,8 +114,25 @@ def get_transforms():
     ]
 
 
+def dataset_convert():
+    resize = A.Resize(256, 256)
+    dataset_path = utils.get_project_root() + '/dataset/' + 'training/'
+    converted_path = utils.get_project_root() + '/dataset/' + 'camus_png/'
+
+    img_paths, seg_paths = get_image_paths(dataset_path)
+
+    folders = os.listdir(dataset_path)
+    for folder in folders:
+        os.makedirs(converted_path + folder)
+
+    for img_path, seg_path in zip(img_paths, seg_paths):
+        data = resize(image=imread(img_path)[0], mask=imread(seg_path)[0])
+        imsave(converted_path + img_path[31:-3] + 'png', data['image'])
+        imsave(converted_path + seg_path[31:-3] + 'png', data['mask'])
+
+
 if __name__ == '__main__':
-    loader = DataLoader(CamusDataset(augment=True), batch_size=6)
+    loader = DataLoader(CamusDatasetPNG(), batch_size=6)
     iter_data = iter(loader)
     for _ in range(6):
         img, seg = next(iter_data)
