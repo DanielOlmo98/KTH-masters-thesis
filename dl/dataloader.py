@@ -1,30 +1,33 @@
 import os
 
+import albumentations as A
 import albumentations.pytorch
-import numpy as np
-import torch
-import utils
-import h5py
 import cv2
 import kornia
-import albumentations as A
+import numpy as np
+import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
 from skimage.io import imread, imsave
-from torchvision.transforms import Resize, Compose
 from torch.nn.functional import one_hot
+from torch.utils.data import Dataset
+
+import utils
 
 
 class CamusDatasetPNG(Dataset):
-    def __init__(self):
+    def __init__(self, tranformer=None):
         self.imgs, self.segs = self.load_dataset()
+        if tranformer is None:
+            self.transformer = DataAugmentation()
+        else:
+            self.transformer = tranformer
 
     def __len__(self):
         return len(self.imgs)
 
     def __getitem__(self, idx):
-        img = self.imgs[idx]
-        seg = self.segs[idx]
+        # img = self.imgs[idx]
+        # seg = self.segs[idx]
         # transform = kornia.augmentation.RandomElasticTransform(alpha=(3., 3.), sigma=(12., 12.), p=1.).to('cuda')
 
         # img_np = kornia.utils.image.tensor_to_image(transform(img))
@@ -35,8 +38,14 @@ class CamusDatasetPNG(Dataset):
 
         # img = transform(img).squeeze(dim=0)
         # seg = transform(seg, transform._params).squeeze(dim=0).type(torch.int64)
-        transformer = DataAugmentation()
-        return transformer(img, seg)
+        # transformer = DataAugmentation().to('cuda')
+        # self.t1 = kornia.augmentation.RandomElasticTransform(kernel_size=(85, 85), alpha=(2., 2.), sigma=(24., 24.),
+        #                                                      p=1.)
+        # img = self.t1(img, self.t1.generate_parameters(img.shape)).squeeze(dim=0)
+        # seg = self.t1(seg, self.t1._params).squeeze(dim=0).type(torch.int64)
+        # return img, seg
+        # aug = self.transformer()
+        return self.transformer(self.imgs[idx], self.segs[idx])
 
     def load_dataset(self):
         data_path = utils.get_project_root() + "/dataset/camus_png/"
@@ -46,11 +55,13 @@ class CamusDatasetPNG(Dataset):
         gpu = torch.device('cuda:0')
         for img_p, seg_p in zip(img_paths, seg_paths):
             img = cv2.imread(img_p, 0)
-            img_list.append(kornia.utils.image_to_tensor(img).to(gpu).type(torch.float32).div(255.))
+            img_list.append(kornia.utils.image_to_tensor(img))
             seg = cv2.imread(seg_p, 0)
-            seg = kornia.utils.image_to_tensor(seg).type(torch.int64)
-            seg_list.append(kornia.utils.one_hot(seg, 4).squeeze(dim=0).type(torch.float32).to(gpu))
+            seg = kornia.utils.image_to_tensor(seg).to(gpu)
+            seg_list.append(kornia.utils.one_hot(seg.type(torch.int64), 4, device=gpu).squeeze(dim=0))
 
+        img_list = torch.stack(img_list).type(torch.float32).to(gpu)
+        seg_list = torch.stack(seg_list).type(torch.float32).to(gpu)
         return img_list, seg_list
 
 
@@ -59,8 +70,11 @@ class DataAugmentation(nn.Module):
         super(DataAugmentation, self).__init__()
         self.t1 = kornia.augmentation.RandomElasticTransform(kernel_size=(85, 85), alpha=(2., 2.), sigma=(24., 24.),
                                                              p=1.)
+        # self.t1.device = torch.device('cuda:0')
+        # self.t1.to('cuda:0')
 
-    def forward(self, img: torch.Tensor, seg: torch.Tensor) -> torch.Tensor:
+    def forward(self, img: torch.Tensor, seg: torch.Tensor):
+        # noise = self.t1.generate_parameters([1, *img.shape])
         img_o = self.t1(img).squeeze(dim=0)
         seg_o = self.t1(seg, self.t1._params).squeeze(dim=0).type(torch.int64)
         return img_o, seg_o
@@ -143,28 +157,31 @@ def dataset_convert():
         imsave(converted_path + seg_path[31:-3] + 'png', data['mask'])
 
 
-if __name__ == '__main__':
+def timetest():
     import timeit
 
     imports = """from dl.dataloader import DataLoader, DataAugmentation, CamusDatasetPNG
 import torch"""
 
-    testcode = """loader = DataLoader(CamusDatasetPNG(), batch_size=4)
+    testcode = """loader = DataLoader(CamusDatasetPNG(), batch_size=4)    
 iter_data = iter(loader)
 # aug = DataAugmentation()
 for _ in range(2):
     img, seg = next(iter_data)
-    r = torch.cuda.memory_reserved(0)
-    a = torch.cuda.memory_allocated(0)
-    free = (r-a) / (1024 **3)
-    print(f"{free} GB")
-    torch.cuda.empty_cache()
-        """
+    #torch.cuda.empty_cache()
+r = torch.cuda.memory_reserved(0)
+a = torch.cuda.memory_allocated(0)
+print(f"Reserved:  {r*1e-9:.3f} GB")
+print(f"Allocated: {a*1e-9:.3f} GB")
+            """
     print(timeit.timeit(stmt=testcode, setup=imports, number=10))
+
+
+if __name__ == '__main__':
+    timetest()
     # loader = DataLoader(CamusDatasetPNG(), batch_size=4)
     # iter_data = iter(loader)
-    # aug = DataAugmentation()
     # for _ in range(2):
-    #     img, seg = aug(*next(iter_data))
+    #     img, seg = next(iter_data)
     #     for i in range(4):
     #         utils.plot_onehot_seg(img.cpu().numpy()[i].squeeze(), seg=seg.cpu().numpy()[i], title="aaaaaa")
