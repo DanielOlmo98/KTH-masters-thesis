@@ -43,6 +43,8 @@ def train_unet(unet, epochs, optimizer, loss_func, train_loader, val_loader, sav
                 'train loss': train_loss_epoch,
                 'val loss': val_loss_epoch,
             }, epoch)
+        else:
+            tb_writer.add_scalars('train loss', train_loss_epoch, epoch)
 
     tb_writer.close()
     if not do_val:
