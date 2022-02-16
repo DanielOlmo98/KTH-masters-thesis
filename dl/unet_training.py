@@ -173,7 +173,7 @@ if __name__ == '__main__':
     unet = Unet(output_ch=n_ch).cuda()
     # unet = load_unet("unet_multiclass3.pt", channels=n_ch)
     batch_size = 16
-    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG())
+    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG(kornia=False))
     train_settings = {
         "epochs": 100,
         "loss_func": loss_func,
@@ -196,5 +196,5 @@ if __name__ == '__main__':
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, use_cuda=True) as prof:
     #     train_unet(unet, **train_settings)
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-    train_unet(unet, **train_settings)
+    # train_unet(unet, **train_settings)
     check_predictions(load_unet(filename, channels=n_ch), val_loader, loss_func)
