@@ -44,12 +44,17 @@ def train_unet(unet, epochs, optimizer, loss_func, train_loader, val_loader, sav
                 'val loss': val_loss_epoch,
             }, epoch)
         else:
-            tb_writer.add_scalars('train loss', train_loss_epoch, epoch)
+            tb_writer.add_scalar('Loss/train', train_loss_epoch, epoch)
+            if epoch % 25 == 0:
+                print("\nModel Saved")
+                torch.save(unet.state_dict(), savename)
+
+        r = torch.cuda.memory_reserved(0)
+        a = torch.cuda.memory_allocated(0)
+        print(f"\nReserved:  {r * 1e-9:.2f} GB")
+        print(f"Allocated: {a * 1e-9:.2f} GB")
 
     tb_writer.close()
-    if not do_val:
-        print("\nModel Saved")
-        torch.save(unet.state_dict(), savename)
     evaluate_unet(unet, val_loader, savename)
 
 
@@ -138,63 +143,61 @@ def load_unet(filename, channels=2):
 def check_predictions(unet, val_loader, loss):
     unet.eval()
     with torch.no_grad():
-        img, seg = next(iter(val_loader))
-        i = 0
-        seg = seg[i]
-        img = img[i:i + 1]
-        # img = img.unsqueeze(dim=0)
-        prediction = unet(img)
+        for i in range(4):
+            img, seg = next(iter(val_loader))
+            seg = seg[i]
+            img = img[i:i + 1]
+            # img = img.unsqueeze(dim=0)
+            prediction = unet(img)
 
-    loss_score = loss(prediction, seg).item()
-    print(f"Loss: {loss_score:.3f}")
-    prediction = torch.softmax(prediction, dim=1)
-    prediction = (prediction > 0.5).float().squeeze(dim=0)
-    dl.metrics.print_metrics(prediction, seg)
-    prediction = prediction.cpu().detach().numpy()
-    img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
-    seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
-    # utils.plot_onehot_seg(img, seg, title='Ground Truth')
-    # utils.plot_onehot_seg(img, prediction, title='Prediction')
-    utils.plot_onehot_seg(img, prediction, outline=seg)
-    '''
-    green: overlap
-    orange: missed
-    red: segmented background
-    '''
-    # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
+            loss_score = loss(prediction, seg).item()
+            print(f"Loss: {loss_score:.3f}")
+            prediction = torch.softmax(prediction, dim=1)
+            prediction = (prediction > 0.5).float().squeeze(dim=0)
+            dl.metrics.print_metrics(prediction, seg)
+            prediction = prediction.cpu().detach().numpy()
+            img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
+            seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
+            # utils.plot_onehot_seg(img, seg, title='Ground Truth')
+            # utils.plot_onehot_seg(img, prediction, title='Prediction')
+            utils.plot_onehot_seg(img, prediction, outline=seg)
+            '''
+            green: overlap
+            orange: missed
+            red: segmented background
+            '''
+            # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
 if __name__ == '__main__':
-    # loss_func = dl.metrics.DiceLoss(num_classes=2, weights=torch.tensor([0.3, 3], device='cuda:0'), f1_weight=0.3)
-    class_weights = torch.tensor([0.1, 1, 1, 2], device='cuda:0')
-    n_ch = class_weights.size()[0]
+    class_weights = torch.tensor([0.1, 2, 2, 3], device='cuda:0')
     loss_func = dl.metrics.FscoreLoss(class_weights=class_weights, f1_weight=0.6)
-    filename = "unet_multiclass4.pt"
+    n_ch = class_weights.size()[0]
+
+    filename = "unet_multiclass6.pt"
     unet = Unet(output_ch=n_ch).cuda()
     # unet = load_unet("unet_multiclass3.pt", channels=n_ch)
+
     batch_size = 16
-    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG(kornia=False))
+    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG())
     train_settings = {
         "epochs": 100,
         "loss_func": loss_func,
         # 'loss_func': nn.CrossEntropyLoss(),
         # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
-        "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-4),
+        "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=2e-4),
         "train_loader": train_loader,
         "val_loader": val_loader,
         "savename": filename,
         "do_val": False
     }
 
-    # unet = load_unet("unet_camus_bce.pt").cuda()
-
     '''
     TODO:
-        -data augmentation
-        -profiling
+        -batch augmentation
     '''
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, use_cuda=True) as prof:
     #     train_unet(unet, **train_settings)
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-    # train_unet(unet, **train_settings)
+    train_unet(unet, **train_settings)
     check_predictions(load_unet(filename, channels=n_ch), val_loader, loss_func)

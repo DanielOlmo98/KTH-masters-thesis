@@ -15,7 +15,7 @@ import utils
 
 
 class CamusDatasetPNG(Dataset):
-    def __init__(self, kornia=True):
+    def __init__(self, kornia=False):
         self.kornia = kornia
         if self.kornia:
             self.imgs, self.segs = self.load_dataset()
@@ -164,9 +164,9 @@ def get_transforms():
     return [
         # A.Normalize(max_pixel_value=1.0),
         A.HorizontalFlip(p=0.5),
-        A.ElasticTransform(p=1, alpha=100, sigma=15, alpha_affine=6, border_mode=1),
+        A.ElasticTransform(p=1, alpha=130, sigma=15, alpha_affine=6, border_mode=0),
+        A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=0.4, contrast_limit=0.2),
         A.pytorch.ToTensorV2(),
-        # A.RandomBrightnessContrast(p=0.7, brightness_by_max=False),
 
     ]
 
