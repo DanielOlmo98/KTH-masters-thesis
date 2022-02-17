@@ -1,5 +1,6 @@
 import os
-
+import asyncio
+import threading, queue
 import albumentations as A
 import albumentations.pytorch
 import cv2
@@ -18,14 +19,19 @@ class CamusDatasetPNG(Dataset):
     def __init__(self, kornia=False):
         self.kornia = kornia
         if self.kornia:
-            self.imgs, self.segs = self.load_dataset()
             self.transformer = DataAugmentation()
+            self.imgs, self.segs = self.kornia_load_dataset()
         else:
-            self.imgs, self.segs = self.load_np()
             self.transformer = A.Compose(get_transforms())
+            self.aug_imgs = []
+            self.aug_segs = []
+            self.imgs, self.segs = self.load_np()
+            self.augment_full_dataset()
+            self.q = queue.Queue()
+            threading.Thread(target=self.augment_idx, daemon=True).start()
 
     def __len__(self):
-        return len(self.imgs)
+        return len(self.aug_imgs)
 
     def __getitem__(self, idx):
         # img = self.imgs[idx]
@@ -51,12 +57,17 @@ class CamusDatasetPNG(Dataset):
 
             return self.transformer(self.imgs[idx], self.segs[idx])
         else:
-            augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
-            img = augmented['image'].type(torch.float32).div(255.)
-            seg = one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1)
-            return img.to('cuda'), seg.to('cuda')
+            # if len(self) == 0:
+            #     self.augment_full_dataset()
+            # asyncio.run(self.augment_idx(idx))
+            self.q.put(idx)
+            # augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
+            # img = augmented['image'].type(torch.float32).div(255.)
+            # seg = one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1)
+            # return self.aug_imgs.pop(idx), self.aug_segs.pop(idx)
+            return self.aug_imgs[idx], self.aug_segs[idx]
 
-    def load_dataset(self):
+    def kornia_load_dataset(self):
         data_path = utils.get_project_root() + "/dataset/camus_png/"
         img_paths, seg_paths = get_image_paths(data_path, extension='.png')
         img_list = []
@@ -78,6 +89,7 @@ class CamusDatasetPNG(Dataset):
         img_paths, seg_paths = get_image_paths(data_path, extension='.png')
         img_list = []
         seg_list = []
+
         gpu = torch.device('cuda:0')
         for img_p, seg_p in zip(img_paths, seg_paths):
             img = cv2.imread(img_p, 0)
@@ -88,6 +100,20 @@ class CamusDatasetPNG(Dataset):
         # img_list = torch.stack(img_list).type(torch.float32).to(gpu)
         # seg_list = torch.stack(seg_list).type(torch.float32).to(gpu)
         return img_list, seg_list
+
+    def augment_full_dataset(self):
+        for img, seg in zip(self.imgs, self.segs):
+            augmented = self.transformer(image=img, mask=seg)
+            self.aug_imgs.append(augmented['image'].type(torch.float32).div(255.).to('cuda'))
+            self.aug_segs.append(
+                one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
+        return
+
+    def augment_idx(self):
+        idx = self.q.get()
+        augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
+        self.aug_imgs[idx] = (augmented['image'].type(torch.float32).div(255.).to('cuda'))
+        self.aug_segs[idx] = (one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
 
 
 class DataAugmentation(nn.Module):
