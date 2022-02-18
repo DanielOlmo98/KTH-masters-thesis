@@ -29,11 +29,11 @@ def cy_srad(float [:, :] array,float step=0.05, int iter=0):
     for i in range(1, ny-1):
         for j in range(1, nx-1):
             # 4 neighbourhood pixels
-            p1 = array[i+1, j] - array[i, j]
-            p2 = array[i, j+1] - array[i, j]
-            p3 = array[i, j] - array[i-1, j]
-            p4 = array[i, j] - array[i, j-1]
-            d2I = (array[i+1, j] + array[i-1, j] + array[i, j+1] + array[i, j-1] - 4.0*array[i, j])
+            p1 = array[i+1, j] - array[i, j] # d_N
+            p2 = array[i, j+1] - array[i, j] # d_E
+            p3 = array[i, j] - array[i-1, j] # d_S
+            p4 = array[i, j] - array[i, j-1] # d_W
+            d2I = (array[i+1, j] + array[i-1, j] + array[i, j+1] + array[i, j-1] - 4.0*array[i, j]) # ∇^2
             qp1 = sqrt(p1**2 + p2**2 + p3**2 + p4**2) / array[i, j]
             qp2 = d2I / array[i, j]
             q = ((qp1*qp1/2.0 - qp2*qp2/16.0) / (1.0 + qp2/4.0)**2)

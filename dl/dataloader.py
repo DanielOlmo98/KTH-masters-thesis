@@ -16,16 +16,16 @@ import utils
 
 
 class CamusDatasetPNG(Dataset):
-    def __init__(self, kornia=False):
+    def __init__(self, kornia=False, augment=True):
         self.kornia = kornia
         if self.kornia:
             self.transformer = DataAugmentation()
             self.imgs, self.segs = self.kornia_load_dataset()
         else:
-            self.transformer = A.Compose(get_transforms())
+            self.imgs, self.segs = self.load_np()
+            self.transformer = A.Compose(get_transforms(augment))
             self.aug_imgs = []
             self.aug_segs = []
-            self.imgs, self.segs = self.load_np()
             self.augment_full_dataset()
             self.q = queue.Queue()
             threading.Thread(target=self.augment_idx, daemon=True).start()
@@ -60,11 +60,11 @@ class CamusDatasetPNG(Dataset):
             # if len(self) == 0:
             #     self.augment_full_dataset()
             # asyncio.run(self.augment_idx(idx))
-            self.q.put(idx)
             # augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
             # img = augmented['image'].type(torch.float32).div(255.)
             # seg = one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1)
             # return self.aug_imgs.pop(idx), self.aug_segs.pop(idx)
+            self.q.put(idx)
             return self.aug_imgs[idx], self.aug_segs[idx]
 
     def kornia_load_dataset(self):
@@ -114,6 +114,20 @@ class CamusDatasetPNG(Dataset):
         augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
         self.aug_imgs[idx] = (augmented['image'].type(torch.float32).div(255.).to('cuda'))
         self.aug_segs[idx] = (one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
+
+
+def get_transforms(augment=True):
+    if augment:
+        return [
+            # A.Normalize(max_pixel_value=1.0),
+            A.HorizontalFlip(p=0.5),
+            A.ElasticTransform(p=1, alpha=110, sigma=15, alpha_affine=7, border_mode=0),
+            A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=0.4, contrast_limit=0.2),
+            A.pytorch.ToTensorV2(),
+
+        ]
+    else:
+        return [A.pytorch.ToTensorV2()]
 
 
 class DataAugmentation(nn.Module):
@@ -184,17 +198,6 @@ def get_image_paths(data_path, extension=".mhd"):
         img_paths.extend(img_path)
 
     return img_paths, gt_paths
-
-
-def get_transforms():
-    return [
-        # A.Normalize(max_pixel_value=1.0),
-        A.HorizontalFlip(p=0.5),
-        A.ElasticTransform(p=1, alpha=130, sigma=15, alpha_affine=6, border_mode=0),
-        A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=0.4, contrast_limit=0.2),
-        A.pytorch.ToTensorV2(),
-
-    ]
 
 
 def dataset_convert():

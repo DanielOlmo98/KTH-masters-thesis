@@ -143,7 +143,7 @@ def load_unet(filename, channels=2, levels=4):
 def check_predictions(unet, val_loader, loss):
     unet.eval()
     with torch.no_grad():
-        for i in range(4):
+        for i in range(2):
             img, seg = next(iter(val_loader))
             seg = seg[i]
             img = img[i:i + 1]
@@ -170,23 +170,21 @@ def check_predictions(unet, val_loader, loss):
 
 
 if __name__ == '__main__':
-    class_weights = torch.tensor([0.1, 1, 1, 1], device='cuda:0')
+    class_weights = torch.tensor([0.1, 1, 1, 1.5], device='cuda:0')
     loss_func = dl.metrics.FscoreLoss(class_weights=class_weights, f1_weight=0.6)
     n_ch = class_weights.size()[0]
     levels = 5
     filename = "unet_multiclass7.pt"
-    unet = Unet(output_ch=n_ch, levels=levels).cuda()
-    # unet = load_unet(filename, channels=n_ch, levels=levels)
+    # unet = Unet(output_ch=n_ch, levels=levels).cuda()
+    unet = load_unet(filename, channels=n_ch, levels=levels)
 
-    batch_size = 8
+    batch_size = 10
 
-    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG())
+    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG(augment=False))
     train_settings = {
         "epochs": 200,
         "loss_func": loss_func,
-        # 'loss_func': nn.CrossEntropyLoss(),
-        # "optimizer": optim.SGD(unet.parameters(), lr=1e-4, momentum=0),
-        "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-5),
+        "optimizer": optim.Adam(unet.parameters(), lr=1e-4, weight_decay=1e-4),
         "train_loader": train_loader,
         "val_loader": val_loader,
         "savename": filename,
@@ -198,9 +196,10 @@ if __name__ == '__main__':
         -batch augmentation
         -change aug params
     '''
-    # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, use_cuda=True) as prof:
+    # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,use_cuda=True) as prof:
     #     train_unet(unet, **train_settings)
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-    train_unet(unet, **train_settings)
-    # evaluate_unet(unet, val_loader, filename)
+
+    # train_unet(unet, **train_settings)
+    evaluate_unet(unet, val_loader, '2' + filename)
     check_predictions(load_unet(filename, channels=n_ch, levels=levels), val_loader, loss_func)
