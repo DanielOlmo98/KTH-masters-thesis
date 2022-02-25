@@ -180,7 +180,7 @@ if __name__ == '__main__':
 
     batch_size = 10
 
-    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG(augment=False))
+    train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG(augment=True))
     train_settings = {
         "epochs": 200,
         "loss_func": loss_func,
@@ -193,7 +193,6 @@ if __name__ == '__main__':
 
     '''
     TODO:
-        -batch augmentation
         -change aug params
     '''
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,use_cuda=True) as prof:
