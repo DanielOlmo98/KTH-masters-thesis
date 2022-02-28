@@ -6,7 +6,7 @@ from scipy import interpolate, ndimage, special, signal, misc
 import cv2
 
 '''
-this is a mess
+This file has been abandoned.
 '''
 
 

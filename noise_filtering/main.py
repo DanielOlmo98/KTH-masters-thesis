@@ -7,7 +7,7 @@ from skimage.io import imread
 from skimage import color, img_as_float32
 from skimage.transform import resize
 from noise_filtering.denoise import sitk_noisefilter
-from noise_filtering.wavelet_denoise import wavelet_exp, skimage_wavelet_denoise, wavelet_plot
+from noise_filtering.wavelet_denoise import wavelet_denoise, wavelet_plot
 from noise_filtering.dct import dct_exp
 import cv2
 import utils
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     wavelet_plot(image)
     utils.plot_image_g(image, title='Noised', overlay_img=segmentation)
     # utils.plot_image_g(ground_truth, title='Original', overlay_img=segmentation)
-    utils.plot_image_g(wavelet_exp(image, plot=True,sigma=0.1), title='Wavelte denoise')
+    utils.plot_image_g(wavelet_denoise(image, sigma=0.1), title='Wavelte denoise')
     # utils.plot_image_g(skimage_wavelet_denoise(image))
     #
     # step_list = [150]
@@ -199,15 +199,3 @@ if __name__ == '__main__':
     #             print("SSIM: {:.3f}".format(ssim))
     #             print("PSNR: {:.3f}".format(psnr))
     #             print()
-
-    # from skimage.segmentation import chan_vese
-
-    #     segmented2 = chan_vese(denoised, mu=0.25, lambda1=1, lambda2=1, tol=1e-3,
-    #                            max_iter=500, dt=0.5, init_level_set="checkerboard",
-    #                            extended_output=False)
-    #     utils.plot_image_g(segmented2, title='Segmented')
-    #
-    # segmented = chan_vese(image, mu=0.25, lambda1=1, lambda2=0.8, tol=1e-3,
-    #                       max_iter=500, dt=0.5, init_level_set="checkerboard",
-    #                       extended_output=False)
-    # utils.plot_image_g(segmented, title='Segmented')

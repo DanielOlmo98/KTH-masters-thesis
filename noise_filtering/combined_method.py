@@ -1,10 +1,9 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from utils import *
 from noise_filtering.SRAD.PyRAD_SRAD import cy_csrad
 from noise_filtering.HMF import hybrid_median_filtering
 from skimage.restoration import denoise_tv_bregman
 import pywt
+import utils
 
 '''
 Wavelet Decomposition-Based Speckle
@@ -20,7 +19,7 @@ def csrad(image, steps, step_size):
     ci = np.zeros_like(image)
     for n in range(steps):
         image_n = np.abs(image_n)
-        image_n, ci, di = cy_csrad(array=image_n.clip(1e-9), ci_1=ci.clip(1e-9), iter=n, step=step_size)
+        image_n, ci, di = cy_csrad(array=image_n.clip(1e-7), ci_1=ci.clip(1e-7), iter=n, step=step_size)
         ci = np.asarray(ci.base)
 
     return image_n
@@ -34,22 +33,22 @@ def wavelet_HMF(coeffs):
 
 
 def combined_method(image, steps, step_size, tv_weight=0.5):
-    coeffs2 = pywt.dwt2(image, 'haar')
+    coeffs2 = pywt.dwt2(image, 'db1')
     LL, wavelet_coeffs = coeffs2
 
     LL = csrad(LL, steps=steps, step_size=step_size)
     LH, HL, HH = wavelet_HMF(wavelet_coeffs)
-    recon_img = pywt.idwt2((LL, (LH, HL, HH)), 'haar')
+    recon_img = pywt.idwt2((LL, (LH, HL, HH)), 'db1')
     recon_img = denoise_tv_bregman(recon_img, weight=tv_weight)
     return recon_img[:, 0:-1]
 
 
 if __name__ == '__main__':
-    images = load_images()
-    image = images[0]
-    # image = image[130:300, 200:450]
-    steps = 30
-    step_size = 0.05
-    denoised = combined_method(image, steps, step_size)
-    plot_image_g(image, title='Original')
-    plot_image_g(denoised, title='Denoised')
+    images = utils.load_images()
+    image = images[2]
+    steps = 40
+    step_size = 0.01
+    tv_weight = 0.5
+    denoised = combined_method(image, steps, step_size, tv_weight)
+    utils.plot_image_g(image, title='Original')
+    utils.plot_image_g(denoised, title='Denoised')

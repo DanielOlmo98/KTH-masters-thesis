@@ -1,10 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
-from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1, heightmap
-from noise_filtering.main import load_images
-from scipy.stats import variation
-from scipy.ndimage.filters import gaussian_filter
-
+import utils
+'''
+Working but very slow, use cython implementation.
+'''
 
 def discretized_SRAD(img, step_size, step):
     width, height = img.shape
@@ -62,13 +60,13 @@ def SRAD_solver(img, steps, step_size, plot=False):
             img_title = 'Iteration number: ' + str(n)
             # heightmap(d_n)
             # plot_image_g(img_n, title=img_title, overlay_img=d_n)
-            plot_image_g(img_n, title=img_title)
+            utils.plot_image_g(img_n, title=img_title)
 
     return img_n
 
 
 if __name__ == '__main__':
-    images = load_images()
+    images = utils.load_images()
     image = images[0]
     # image = image[130:300, 200:450]
 
@@ -76,4 +74,4 @@ if __name__ == '__main__':
     image += epsilon
 
     res = SRAD_solver(image, steps=20, step_size=0.1)
-    plot_image_g(res, title='Final SRAD 2')
+    utils.plot_image_g(res, title='Final SRAD 2')

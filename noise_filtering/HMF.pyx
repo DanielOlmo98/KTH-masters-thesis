@@ -1,6 +1,5 @@
 import numpy as np
 import cython
-from utils import plot_image_g
 """
 Wavelet DecompositionYBased Speckle
 Reduction Method for Ultrasound Images by
@@ -15,7 +14,6 @@ http://dx.doi.org/10.1097/JCE.0000000000000300
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def hybrid_median_filtering(float [:, :] arr, int kernel_size = 5):
-    # cdef float [:, :] data_final = np.zeros((y_size,x_size), dtype='f')
     cdef float [:, :] data_final = np.zeros_like(arr)
     cdef int i, j, k, z, c, indexer, temp_index, y_size ,x_shape
     cdef float diag, cross, center
