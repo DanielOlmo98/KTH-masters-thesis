@@ -8,6 +8,9 @@ import kornia
 import numpy as np
 import torch
 import torch.nn as nn
+import gc
+from sklearn.model_selection import KFold
+from torch.utils.data import DataLoader, Subset
 from skimage.io import imread, imsave
 from torch.nn.functional import one_hot
 from torch.utils.data import Dataset
@@ -16,73 +19,27 @@ import utils
 
 
 class CamusDatasetPNG(Dataset):
-    def __init__(self, kornia=False, augment=True):
-        self.kornia = kornia
-        if self.kornia:
-            self.transformer = DataAugmentation()
-            self.imgs, self.segs = self.kornia_load_dataset()
-        else:
-            self.imgs, self.segs = self.load_np()
-            self.transformer = A.Compose(get_transforms(augment))
-            self.aug_imgs = []
-            self.aug_segs = []
-            self.augment_full_dataset()
-            self.q = queue.Queue()
-            threading.Thread(target=self.augment_idx, daemon=True).start()
+    """
+    Loads the dataset into CPU memory, then creates an augmented copy in GPU memory.
+    When a sample is requested it is returned from the GPU and put in an asynchronous queue that augments the sample
+    from CPU and refills the GPU dataset.
+    """
+
+    def __init__(self, augment=True):
+        self.imgs, self.segs = self.load_np()
+        self.transformer = A.Compose(get_transforms(augment))
+        self.aug_imgs = []
+        self.aug_segs = []
+        self.augment_full_dataset()
+        self.q = queue.Queue()
+        threading.Thread(target=self.augment_idx, daemon=True).start()
 
     def __len__(self):
         return len(self.aug_imgs)
 
     def __getitem__(self, idx):
-        # img = self.imgs[idx]
-        # seg = self.segs[idx]
-        # transform = kornia.augmentation.RandomElasticTransform(alpha=(3., 3.), sigma=(12., 12.), p=1.).to('cuda')
-
-        # img_np = kornia.utils.image.tensor_to_image(transform(img))
-        # seg_np = kornia.utils.image.tensor_to_image(transform(seg, transform._params))
-        # utils.plot_image_g(kornia.utils.image.tensor_to_image(tf[0]))
-        # utils.plot_image_g(kornia.utils.image.tensor_to_image(tf2[0, 1, :, :]))
-        # utils.plot_onehot_seg(img_np, np.transpose(seg_np, axes=[2, 0, 1]), title="get")
-
-        # img = transform(img).squeeze(dim=0)
-        # seg = transform(seg, transform._params).squeeze(dim=0).type(torch.int64)
-        # transformer = DataAugmentation().to('cuda')
-        # self.t1 = kornia.augmentation.RandomElasticTransform(kernel_size=(85, 85), alpha=(2., 2.), sigma=(24., 24.),
-        #                                                      p=1.)
-        # img = self.t1(img, self.t1.generate_parameters(img.shape)).squeeze(dim=0)
-        # seg = self.t1(seg, self.t1._params).squeeze(dim=0).type(torch.int64)
-        # return img, seg
-        # aug = self.transformer()
-        if self.kornia:
-
-            return self.transformer(self.imgs[idx], self.segs[idx])
-        else:
-            # if len(self) == 0:
-            #     self.augment_full_dataset()
-            # asyncio.run(self.augment_idx(idx))
-            # augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
-            # img = augmented['image'].type(torch.float32).div(255.)
-            # seg = one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1)
-            # return self.aug_imgs.pop(idx), self.aug_segs.pop(idx)
-            self.q.put(idx)
-            return self.aug_imgs[idx], self.aug_segs[idx]
-
-    def kornia_load_dataset(self):
-        data_path = utils.get_project_root() + "/dataset/camus_png/"
-        img_paths, seg_paths = get_image_paths(data_path, extension='.png')
-        img_list = []
-        seg_list = []
-        gpu = torch.device('cuda:0')
-        for img_p, seg_p in zip(img_paths, seg_paths):
-            img = cv2.imread(img_p, 0)
-            img_list.append(kornia.utils.image_to_tensor(img))
-            seg = cv2.imread(seg_p, 0)
-            seg = kornia.utils.image_to_tensor(seg).to(gpu)
-            seg_list.append(kornia.utils.one_hot(seg.type(torch.int64), 4, device=gpu).squeeze(dim=0))
-
-        img_list = torch.stack(img_list).type(torch.float32).to(gpu)
-        seg_list = torch.stack(seg_list).type(torch.float32).to(gpu)
-        return img_list, seg_list
+        self.q.put(idx)
+        return self.aug_imgs[idx], self.aug_segs[idx]
 
     def load_np(self):
         data_path = utils.get_project_root() + "/dataset/camus_png/"
@@ -90,15 +47,12 @@ class CamusDatasetPNG(Dataset):
         img_list = []
         seg_list = []
 
-        gpu = torch.device('cuda:0')
         for img_p, seg_p in zip(img_paths, seg_paths):
             img = cv2.imread(img_p, 0)
             img_list.append(img)
             seg = cv2.imread(seg_p, 0)
             seg_list.append(seg)
 
-        # img_list = torch.stack(img_list).type(torch.float32).to(gpu)
-        # seg_list = torch.stack(seg_list).type(torch.float32).to(gpu)
         return img_list, seg_list
 
     def augment_full_dataset(self):
@@ -114,6 +68,44 @@ class CamusDatasetPNG(Dataset):
         augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
         self.aug_imgs[idx] = (augmented['image'].type(torch.float32).div(255.).to('cuda'))
         self.aug_segs[idx] = (one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
+
+
+class KFoldLoaders:
+    """
+    Uses sklearn KFold to create and iterator that returns loaders
+    """
+
+    def __init__(self, batch_size, split, dataset, augment=False):
+        self.dataset = dataset
+        self.kf = KFold(n_splits=split).split(self.dataset)
+        self.batch_size = batch_size
+        self.augment = augment
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        train_indices, test_indices = next(self.kf)
+
+        train_data = Subset(self.dataset, indices=train_indices)
+        test_data = Subset(self.dataset, indices=test_indices)
+
+        train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True, num_workers=0)
+        test_loader = DataLoader(test_data, batch_size=2, shuffle=True, num_workers=0)
+        gc.collect()
+        torch.cuda.empty_cache()
+        return train_loader, test_loader
+
+
+def get_loaders(batch_size, dataset, train_indices, test_indices):
+    train_data = Subset(dataset, indices=train_indices)
+    test_data = Subset(dataset, indices=test_indices)
+
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
+    test_loader = DataLoader(test_data, batch_size=2, shuffle=True, num_workers=0)
+    return train_loader, test_loader
 
 
 def get_transforms(augment=True):

@@ -4,7 +4,7 @@ import utils
 from unet_model import Unet
 from cell_dataloader import CellSegDataset
 from torch.utils.tensorboard import SummaryWriter
-from unet_training import train_unet, load_unet, check_predictions
+from unet_training import train_loop, load_unet, check_predictions
 import torch.optim as optim
 import numpy as np
 
