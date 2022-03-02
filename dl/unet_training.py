@@ -6,6 +6,7 @@ from tqdm import tqdm
 import dl.metrics
 import utils
 from unet_model import Unet
+import pandas as pd
 from torch.utils.data import DataLoader, random_split, Subset
 from torchvision.utils import save_image
 from torch.utils.tensorboard import SummaryWriter
@@ -121,32 +122,51 @@ def evaluate_unet(unet, val_loader, savename, fold, val_metrics):
 
     except StopIteration:
         metric_lists = torch.FloatTensor(metric_lists)
-        with open(savename[:-3] + "_eval_metrics.txt", "a") as file:
-            p_list = []
-            r_list = []
-            f1_list = []
-            for n in range(n_classes):
-                # p = torch.mean(metric_lists[n, :, 0])
-                # r = torch.mean(metric_lists[n, :, 1])
-                # f1 = torch.mean(metric_lists[n, :, 2])
-                p_list.append(torch.mean(metric_lists[n, :, 0]))
-                r_list.append(torch.mean(metric_lists[n, :, 1]))
-                f1_list.append(torch.mean(metric_lists[n, :, 2]))
-                # file.write(f"Fold: {fold}\n Class {n + 1}:\n  Precision: {p:.3f}, Recall: {r:.3f}, F1: {f1:.3f}\n")
-            val_metrics['p'].append(p_list)
-            val_metrics['r'].append(r_list)
-            val_metrics['f1'].append(f1_list)
+        p_list = []
+        r_list = []
+        f1_list = []
+        for n in range(n_classes):
+            p_list.append(torch.mean(metric_lists[n, :, 0]))
+            r_list.append(torch.mean(metric_lists[n, :, 1]))
+            f1_list.append(torch.mean(metric_lists[n, :, 2]))
+        val_metrics['p'].append(p_list)
+        val_metrics['r'].append(r_list)
+        val_metrics['f1'].append(f1_list)
         pass
 
 
-def save_metrics(savename, val_metrics, folds, n_classes):
-    with open(savename[:-3] + "_eval_metrics.txt", "a") as file:
+def save_metrics(savename, val_metrics):
+    with open(f"{savename}_eval_metrics.txt", "w") as file:
+        fold_arrays = []
+        p_tensor = torch.tensor(val_metrics['p'])
+        r_tensor = torch.tensor(val_metrics['r'])
+        f1_tensor = torch.tensor(val_metrics['f1'])
+        folds, n_classes = p_tensor.shape
         for fold in range(folds):
+            file.write(f'Fold: {fold}\n')
+            fold_arrays.append(np.stack((p_tensor[fold], r_tensor[fold], f1_tensor[fold])))
             for n in range(n_classes):
-                p = val_metrics['p'][fold][n]
-                r = val_metrics['r'][fold][n]
-                f1 = val_metrics['f1'][fold][n]
-                file.write(f"Fold: {fold}\n Class {n + 1}:\n  Precision: {p:.3f}, Recall: {r:.3f}, F1: {f1:.3f}\n")
+                p = p_tensor[fold, n]
+                r = r_tensor[fold, n]
+                f1 = f1_tensor[fold, n]
+                file.write(f"Class {n + 1}:\n  Precision: {p:.3f}, Recall: {r:.3f}, F1: {f1:.3f}\n")
+
+        mult_idx = pd.MultiIndex.from_arrays(
+            [np.array([[f] * len(val_metrics) for f in range(folds)]).flatten(), list(val_metrics.keys()) * folds],
+            names=['fold', 'metric']
+        )
+
+        metrics_frame = pd.DataFrame(np.vstack(fold_arrays), index=mult_idx)
+        metrics_frame.to_csv(f'{savename}.csv')
+
+        file.write(f'Mean:\n')
+        for n in range(n_classes):
+            p_mean = p_tensor[:, n].mean()
+            r_mean = r_tensor[:, n].mean()
+            f1_mean = f1_tensor[:, n].mean()
+            file.write(
+                f"Class {n + 1}:\n  Precision: {p_mean:.3f}, Recall: {r_mean:.3f}, F1: {f1_mean:.3f}\n")
+
     pass
 
 
@@ -231,10 +251,14 @@ def train_unet():
     #     train_unet(unet, *get_loaders(batch_size, dataset, train_idx, test_idx),
     #                f'{filename}_fold.pt', **train_settings)
 
-    kf_loader = KFoldLoaders(batch_size, split=10, dataset=dataset, augment=False)
+    kf_loader = KFoldLoaders(batch_size, split=2, dataset=dataset, augment=False)
     for fold, (train_loader, val_loader) in enumerate(kf_loader):
         train_loop(unet, train_loader, val_loader, f'{filename}_fold{fold}.pt', fold, val_metrics, **train_settings)
 
+    save_metrics(filename, val_metrics)
+    print(val_metrics)
+    metric_frame = pd.DataFrame(val_metrics)
+    print(metric_frame)
     # evaluate_unet(unet, val_loader, filename)
     # check_predictions(load_unet(filename, channels=n_ch, levels=levels), val_loader, loss_func)
 
