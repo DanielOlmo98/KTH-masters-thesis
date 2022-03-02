@@ -98,6 +98,11 @@ class Unet(nn.Module):
 
         return output
 
+    def reset_params(self):
+        for layer in self.children():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
 
 import unittest
 

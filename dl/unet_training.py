@@ -20,7 +20,7 @@ from torch.profiler import profile, record_function, ProfilerActivity
 from pynvml.smi import nvidia_smi
 
 
-def train_loop(unet, train_loader, val_loader, savename, fold, val_metrics, epochs, optimizer, loss_func, do_val=True):
+def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, optimizer, loss_func, do_val=True):
     tb_writer = SummaryWriter()
     bar = Fore.WHITE + '{l_bar}{bar}' + Fore.WHITE + '| {n_fmt}/{total_fmt} [{elapsed}{postfix}]'
     bar_val = Fore.GREEN + '{l_bar}{bar}' + Fore.GREEN + '| {n_fmt}/{total_fmt} [{elapsed}  {postfix}]'
@@ -63,7 +63,7 @@ def train_loop(unet, train_loader, val_loader, savename, fold, val_metrics, epoc
         # print(f"Allocated: {a * 1e-9:.2f} GB")
 
     tb_writer.close()
-    evaluate_unet(unet, val_loader, savename, fold, val_metrics)
+    evaluate_unet(unet, val_loader, val_metrics)
 
 
 def train(optimizer, loss_func, train_loop, unet):
@@ -72,10 +72,10 @@ def train(optimizer, loss_func, train_loop, unet):
     unet.train()
     for _, data in enumerate(train_loop):
         img, gt = data
+        optimizer.zero_grad()
         del data
         with torch.cuda.amp.autocast():
             output = unet(img)
-            optimizer.zero_grad()
             loss = loss_func(output, gt)
 
         loss.backward()
@@ -102,7 +102,7 @@ def val(loss_func, val_loop, unet):
     return val_running_loss / val_loop.n
 
 
-def evaluate_unet(unet, val_loader, savename, fold, val_metrics):
+def evaluate_unet(unet, val_loader, val_metrics):
     unet.eval()
     val_loader = iter(val_loader)
     next_batch = next(val_loader)
@@ -136,38 +136,31 @@ def evaluate_unet(unet, val_loader, savename, fold, val_metrics):
 
 
 def save_metrics(savename, val_metrics):
-    with open(f"{savename}_eval_metrics.txt", "w") as file:
-        fold_arrays = []
-        p_tensor = torch.tensor(val_metrics['p'])
-        r_tensor = torch.tensor(val_metrics['r'])
-        f1_tensor = torch.tensor(val_metrics['f1'])
-        folds, n_classes = p_tensor.shape
-        for fold in range(folds):
-            file.write(f'Fold: {fold}\n')
-            fold_arrays.append(np.stack((p_tensor[fold], r_tensor[fold], f1_tensor[fold])))
-            for n in range(n_classes):
-                p = p_tensor[fold, n]
-                r = r_tensor[fold, n]
-                f1 = f1_tensor[fold, n]
-                file.write(f"Class {n + 1}:\n  Precision: {p:.3f}, Recall: {r:.3f}, F1: {f1:.3f}\n")
+    fold_arrays = []
+    p_tensor = torch.tensor(val_metrics['p'])
+    r_tensor = torch.tensor(val_metrics['r'])
+    f1_tensor = torch.tensor(val_metrics['f1'])
+    folds, n_classes = p_tensor.shape
+    for fold in range(folds):
+        fold_arrays.append(np.stack((p_tensor[fold], r_tensor[fold], f1_tensor[fold])))
 
-        mult_idx = pd.MultiIndex.from_arrays(
-            [np.array([[f] * len(val_metrics) for f in range(folds)]).flatten(), list(val_metrics.keys()) * folds],
-            names=['fold', 'metric']
-        )
+    row_idxs = pd.MultiIndex.from_product(
+        [range(folds), list(val_metrics.keys())],
+        names=['fold', 'metric']
+    )
+    col_idxs = pd.MultiIndex.from_product([range(n_classes)], names=['class'])
 
-        metrics_frame = pd.DataFrame(np.vstack(fold_arrays), index=mult_idx)
-        metrics_frame.to_csv(f'{savename}.csv')
+    metrics_frame = pd.DataFrame(np.vstack(fold_arrays), index=row_idxs, columns=col_idxs)
+    metrics_frame.to_csv(f'{savename}.csv')
+    return metrics_frame
 
-        file.write(f'Mean:\n')
-        for n in range(n_classes):
-            p_mean = p_tensor[:, n].mean()
-            r_mean = r_tensor[:, n].mean()
-            f1_mean = f1_tensor[:, n].mean()
-            file.write(
-                f"Class {n + 1}:\n  Precision: {p_mean:.3f}, Recall: {r_mean:.3f}, F1: {f1_mean:.3f}\n")
 
-    pass
+def calc_metric_avgs(metrics_df, metrics_name):
+    avgs = []
+    for metric in metrics_name:
+        avgs.append(metrics_df.xs(metric, level=1).mean())
+
+    return pd.DataFrame(avgs, index=metrics_name)
 
 
 def load_unet(filename, channels=2, levels=4):
@@ -216,11 +209,11 @@ def train_unet():
     # pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     # print(f'Trainable parameters: {pytorch_total_params}')
     # print(f'Feature maps: {unet.channels}')
-    batch_size = 4
+    batch_size = 10
 
     # train_loader, val_loader = get_loaders(batch_size, CamusDatasetPNG(augment=True))
     train_settings = {
-        "epochs": 1,
+        "epochs": 30,
         "loss_func": loss_func,
         "optimizer": optim.Adam(unet.parameters(), lr=1e-4, weight_decay=1e-3),
         # "train_loader": train_loader,
@@ -237,9 +230,10 @@ def train_unet():
 
     '''
     TODO:
-        -change aug params
-        - k fold validation
-            - store scores for each patient
+        - change aug params
+        - loss graph per fold
+        - store scores for each patient
+        - test augmentation
     '''
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,use_cuda=True) as prof:
     #     train_unet(unet, **train_settings)
@@ -251,14 +245,17 @@ def train_unet():
     #     train_unet(unet, *get_loaders(batch_size, dataset, train_idx, test_idx),
     #                f'{filename}_fold.pt', **train_settings)
 
-    kf_loader = KFoldLoaders(batch_size, split=2, dataset=dataset, augment=False)
+    kf_loader = KFoldLoaders(batch_size, split=10, dataset=dataset, augment=False)
     for fold, (train_loader, val_loader) in enumerate(kf_loader):
-        train_loop(unet, train_loader, val_loader, f'{filename}_fold{fold}.pt', fold, val_metrics, **train_settings)
+        print(f'Fold #{fold}')
+        train_loop(unet, train_loader, val_loader, f'{filename}_fold{fold}.pt', val_metrics, **train_settings)
+        # unet = Unet(output_ch=n_ch, levels=levels).cuda()
+        unet.zero_grad()
+        unet.reset_params()
 
-    save_metrics(filename, val_metrics)
-    print(val_metrics)
-    metric_frame = pd.DataFrame(val_metrics)
-    print(metric_frame)
+    metrics_frame = save_metrics(filename, val_metrics)
+    avg_df = calc_metric_avgs(metrics_frame, list(val_metrics.keys()))
+    print(avg_df)
     # evaluate_unet(unet, val_loader, filename)
     # check_predictions(load_unet(filename, channels=n_ch, levels=levels), val_loader, loss_func)
 
