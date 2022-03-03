@@ -83,6 +83,8 @@ class MySubset(Dataset):
             self.aug_imgs.append(augmented['image'].type(torch.float32).div(255.).to('cuda'))
             self.aug_segs.append(
                 one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
+            gc.collect()
+            torch.cuda.empty_cache()
         return
 
     def augment_idx(self):
@@ -114,7 +116,8 @@ class KFoldLoaders:
         val_data = MySubset(self.dataset, indices=val_indices, augment=False)
 
         train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True, num_workers=0)
-        val_loader = DataLoader(val_data, batch_size=2, shuffle=True, num_workers=0)
+        val_loader = DataLoader(val_data, batch_size=1, shuffle=True, num_workers=0)
+        del train_data, val_data
         gc.collect()
         torch.cuda.empty_cache()
         return train_loader, val_loader

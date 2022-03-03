@@ -58,6 +58,8 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
                 print("\nModel Saved")
                 torch.save(unet.state_dict(), savename)
 
+        gc.collect()
+        torch.cuda.empty_cache()
         # r = torch.cuda.memory_reserved(0)
         # a = torch.cuda.memory_allocated(0)
         # print(f"\nReserved:  {r * 1e-9:.2f} GB")
@@ -211,8 +213,13 @@ def train_unet(unet, filename, train_settings, dataloader_settings):
     for fold, (train_loader, val_loader) in enumerate(kf_loader):
         print(f'Fold #{fold}')
         train_loop(unet, train_loader, val_loader, f'{filename}fold_{fold}.pt', val_metrics, **train_settings)
+        del train_loader.dataset.aug_imgs, train_loader.dataset.aug_segs
+        del val_loader.dataset.aug_imgs, val_loader.dataset.aug_segs
+        del train_loader, val_loader
         unet.zero_grad()
         unet.reset_params()
+        gc.collect()
+        torch.cuda.empty_cache()
 
     metrics_frame = save_metrics(filename, val_metrics)
     avg_df = calc_metric_avgs(metrics_frame, list(val_metrics.keys()))
@@ -232,17 +239,17 @@ if __name__ == '__main__':
     print(f'Feature maps: {unet.channels}')
 
     train_settings = {
-        "epochs": 30,
+        "epochs": 10,
         "loss_func": loss_func,
-        "optimizer": optim.Adam(unet.parameters(), lr=1e-4, weight_decay=1e-3),
+        "optimizer": optim.Adam(unet.parameters(), lr=1e-4, weight_decay=1e-4),
         "do_val": True
     }
 
     dataloader_settings = {
-        "batch_size": 10,
-        "split": 10,
+        "batch_size": 4,
+        "split": 5,
         "dataset": dataset,
-        "augment": False,
+        "augment": True,
     }
 
     train_unet(unet, filename, train_settings, dataloader_settings)
