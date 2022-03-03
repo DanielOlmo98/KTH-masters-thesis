@@ -25,21 +25,29 @@ class CamusDatasetPNG(Dataset):
     from CPU and refills the GPU dataset.
     """
 
-    def __init__(self, augment=True):
+    def __init__(self):
+        self.q = None
         self.imgs, self.segs = self.load_np()
-        self.transformer = A.Compose(get_transforms(augment))
+        self.augment = False
         self.aug_imgs = []
         self.aug_segs = []
+        self.transformer = A.Compose([A.pytorch.ToTensorV2()])
         self.augment_full_dataset()
-        self.q = queue.Queue()
-        threading.Thread(target=self.augment_idx, daemon=True).start()
 
     def __len__(self):
         return len(self.aug_imgs)
 
     def __getitem__(self, idx):
-        self.q.put(idx)
+        if self.augment:
+            self.q.put(idx)
         return self.aug_imgs[idx], self.aug_segs[idx]
+
+    def enable_augment(self):
+        self.augment = True
+        self.transformer = A.Compose(get_transforms())
+        self.augment_full_dataset()
+        self.q = queue.Queue()
+        threading.Thread(target=self.augment_idx, daemon=True).start()
 
     def load_np(self):
         data_path = utils.get_project_root() + "/dataset/camus_png/"
@@ -56,6 +64,8 @@ class CamusDatasetPNG(Dataset):
         return img_list, seg_list
 
     def augment_full_dataset(self):
+        self.aug_imgs.clear()
+        self.aug_segs.clear()
         for img, seg in zip(self.imgs, self.segs):
             augmented = self.transformer(image=img, mask=seg)
             self.aug_imgs.append(augmented['image'].type(torch.float32).div(255.).to('cuda'))
@@ -80,8 +90,6 @@ class KFoldLoaders:
         self.kf = KFold(n_splits=split).split(self.dataset)
         self.batch_size = batch_size
         self.augment = augment
-        gc.collect()
-        torch.cuda.empty_cache()
 
     def __iter__(self):
         return self
@@ -108,18 +116,15 @@ def get_loaders(batch_size, dataset, train_indices, test_indices):
     return train_loader, test_loader
 
 
-def get_transforms(augment=True):
-    if augment:
-        return [
-            # A.Normalize(max_pixel_value=1.0),
-            A.HorizontalFlip(p=0.5),
-            A.ElasticTransform(p=1, alpha=110, sigma=15, alpha_affine=7, border_mode=0),
-            A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=0.4, contrast_limit=0.2),
-            A.pytorch.ToTensorV2(),
+def get_transforms():
+    return [
+        # A.Normalize(max_pixel_value=1.0),
+        A.HorizontalFlip(p=0.5),
+        A.ElasticTransform(p=1, alpha=110, sigma=15, alpha_affine=7, border_mode=0),
+        A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=0.4, contrast_limit=0.2),
+        A.pytorch.ToTensorV2(),
 
-        ]
-    else:
-        return [A.pytorch.ToTensorV2()]
+    ]
 
 
 class DataAugmentation(nn.Module):
