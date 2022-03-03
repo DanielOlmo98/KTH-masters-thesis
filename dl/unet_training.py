@@ -223,9 +223,9 @@ def train_unet(unet, filename, train_settings, dataloader_settings):
 if __name__ == '__main__':
     class_weights = torch.tensor([0.1, 1, 1, 1.5], device='cuda:0')
     loss_func = dl.metrics.FscoreLoss(class_weights=class_weights, f1_weight=0.6)
-    filename = "checkpoints/unet1-1a/"
+    filename = "checkpoints/unet1_no_aug/"
     unet = Unet(output_ch=class_weights.size()[0], levels=4).cuda()
-    dataset = CamusDatasetPNG(augment=True)
+    dataset = CamusDatasetPNG()
     # unet = load_unet(filename, channels=n_ch, levels=levels)
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
@@ -242,6 +242,7 @@ if __name__ == '__main__':
         "batch_size": 10,
         "split": 10,
         "dataset": dataset,
+        "augment": False,
     }
 
     train_unet(unet, filename, train_settings, dataloader_settings)

@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader, Subset
 from skimage.io import imread, imsave
 from torch.nn.functional import one_hot
 from torch.utils.data import Dataset
+from torch.utils.data.dataset import T_co
 
 import utils
 
@@ -26,28 +27,13 @@ class CamusDatasetPNG(Dataset):
     """
 
     def __init__(self):
-        self.q = None
         self.imgs, self.segs = self.load_np()
-        self.augment = False
-        self.aug_imgs = []
-        self.aug_segs = []
-        self.transformer = A.Compose([A.pytorch.ToTensorV2()])
-        self.augment_full_dataset()
 
     def __len__(self):
-        return len(self.aug_imgs)
+        return len(self.imgs)
 
     def __getitem__(self, idx):
-        if self.augment:
-            self.q.put(idx)
-        return self.aug_imgs[idx], self.aug_segs[idx]
-
-    def enable_augment(self):
-        self.augment = True
-        self.transformer = A.Compose(get_transforms())
-        self.augment_full_dataset()
-        self.q = queue.Queue()
-        threading.Thread(target=self.augment_idx, daemon=True).start()
+        return self.imgs[idx], self.segs[idx]
 
     def load_np(self):
         data_path = utils.get_project_root() + "/dataset/camus_png/"
@@ -63,10 +49,36 @@ class CamusDatasetPNG(Dataset):
 
         return img_list, seg_list
 
-    def augment_full_dataset(self):
-        self.aug_imgs.clear()
-        self.aug_segs.clear()
-        for img, seg in zip(self.imgs, self.segs):
+
+class MySubset(Dataset):
+    def __init__(self, dataset, indices, augment=True):
+        self.dataset = dataset
+        self.indices = indices
+        self.aug_imgs = []
+        self.aug_segs = []
+        self.augment = augment
+        if self.augment:
+            self.transformer = A.Compose(get_transforms())
+        else:
+            self.transformer = A.Compose([A.pytorch.ToTensorV2()])
+
+        self.augment_dataset()
+        if self.augment:
+            self.q = queue.Queue()
+            threading.Thread(target=self.augment_idx, daemon=True).start()
+
+    def __getitem__(self, idx):
+        # if isinstance(idx, list):
+        #     return self._get_item([[self.indices[i] for i in idx]])
+        if self.augment:
+            self.q.put(idx)
+        return self.aug_imgs[idx], self.aug_segs[idx]
+
+    def __len__(self):
+        return len(self.indices)
+
+    def augment_dataset(self):
+        for img, seg in [self.dataset[i] for i in self.indices]:
             augmented = self.transformer(image=img, mask=seg)
             self.aug_imgs.append(augmented['image'].type(torch.float32).div(255.).to('cuda'))
             self.aug_segs.append(
@@ -75,7 +87,8 @@ class CamusDatasetPNG(Dataset):
 
     def augment_idx(self):
         idx = self.q.get()
-        augmented = self.transformer(image=self.imgs[idx], mask=self.segs[idx])
+        img, seg = self.dataset[self.indices[idx]]
+        augmented = self.transformer(image=img, mask=seg)
         self.aug_imgs[idx] = (augmented['image'].type(torch.float32).div(255.).to('cuda'))
         self.aug_segs[idx] = (one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
 
@@ -95,25 +108,25 @@ class KFoldLoaders:
         return self
 
     def __next__(self):
-        train_indices, test_indices = next(self.kf)
+        train_indices, val_indices = next(self.kf)
 
-        train_data = Subset(self.dataset, indices=train_indices)
-        test_data = Subset(self.dataset, indices=test_indices)
+        train_data = MySubset(self.dataset, indices=train_indices, augment=self.augment)
+        val_data = MySubset(self.dataset, indices=val_indices, augment=False)
 
         train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True, num_workers=0)
-        test_loader = DataLoader(test_data, batch_size=2, shuffle=True, num_workers=0)
+        val_loader = DataLoader(val_data, batch_size=2, shuffle=True, num_workers=0)
         gc.collect()
         torch.cuda.empty_cache()
-        return train_loader, test_loader
+        return train_loader, val_loader
 
 
-def get_loaders(batch_size, dataset, train_indices, test_indices):
+def get_loaders(batch_size, dataset, train_indices, val_indices):
     train_data = Subset(dataset, indices=train_indices)
-    test_data = Subset(dataset, indices=test_indices)
+    val_data = Subset(dataset, indices=val_indices)
 
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
-    test_loader = DataLoader(test_data, batch_size=2, shuffle=True, num_workers=0)
-    return train_loader, test_loader
+    val_loader = DataLoader(val_data, batch_size=2, shuffle=True, num_workers=0)
+    return train_loader, val_loader
 
 
 def get_transforms():
