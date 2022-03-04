@@ -44,6 +44,8 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
         val_loss_epoch = val(loss_func, val_loop, unet)
         del val_loop
 
+        gc.collect()
+        torch.cuda.empty_cache()
         if val_loss_epoch < val_min_loss:
             torch.save(unet.state_dict(), f'{savename}.pt')
             print("\nModel Saved")
@@ -51,8 +53,6 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
 
         train_loss_list.append(train_loss_epoch)
         val_loss_list.append(val_loss_epoch)
-        gc.collect()
-        torch.cuda.empty_cache()
 
     utils.plot_losses(train_loss_list, val_loss_list, filename=f'{savename}_loss.png')
     evaluate_unet(unet, val_loader, val_metrics)
@@ -255,7 +255,6 @@ if __name__ == '__main__':
 
     ''' TODO
         - change aug params
-        - loss graph per fold
         - store scores for each patient
         - test augmentation
         - check aug refill rate
