@@ -64,13 +64,16 @@ class FscoreLoss(nn.Module):
         self.num_classes = len(class_weights)
         self.f1_weight = f1_weight
 
+    def __str__(self):
+        return f'{type(self)}:\n    Class weights: {self.class_weights}\n    F weight: {self.f1_weight}'
+
     def forward(self, input, target):
         score = torch.zeros(1, device="cuda:0")
         softmax = nn.Softmax(dim=1)
         input = softmax(input)
         for n in range(self.num_classes):
             score += (1 - f1_score(input.unsqueeze(dim=0), target.unsqueeze(dim=0), self.f1_weight)) * (
-            self.class_weights[n])
+                self.class_weights[n])
 
         return score
 

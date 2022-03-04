@@ -49,6 +49,9 @@ class CamusDatasetPNG(Dataset):
 
         return img_list, seg_list
 
+    def __str__(self):
+        return f'{type(self)}\n    n_images: {len(self)}'
+
 
 class MySubset(Dataset):
     def __init__(self, dataset, indices, augment=True):

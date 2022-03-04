@@ -3,7 +3,7 @@ import os
 
 import torch
 from tqdm import tqdm
-
+import json
 import dl.metrics
 import utils
 from unet_model import Unet
@@ -28,6 +28,8 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
     val_min_loss = 9
     # gc.collect()
     # torch.cuda.empty_cache()
+    train_loss_list = []
+    val_loss_list = []
 
     for epoch in range(epochs):
 
@@ -36,36 +38,23 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
         train_loss_epoch = train(optimizer, loss_func, train_loop, unet)
         del train_loop
 
-        if do_val:
-            val_loop = tqdm(val_loader, colour='green', desc=f'               validating', bar_format=bar_val,
-                            leave=True,
-                            position=0)
-            val_loss_epoch = val(loss_func, val_loop, unet)
-            del val_loop
+        val_loop = tqdm(val_loader, colour='green', desc=f'               validating', bar_format=bar_val,
+                        leave=True,
+                        position=0)
+        val_loss_epoch = val(loss_func, val_loop, unet)
+        del val_loop
 
-            if val_loss_epoch < val_min_loss:
-                torch.save(unet.state_dict(), savename)
-                print("\nModel Saved")
-                val_min_loss = val_loss_epoch
+        if val_loss_epoch < val_min_loss:
+            torch.save(unet.state_dict(), f'{savename}.pt')
+            print("\nModel Saved")
+            val_min_loss = val_loss_epoch
 
-            tb_writer.add_scalars("loss per epoch", {
-                'train loss': train_loss_epoch,
-                'val loss': val_loss_epoch,
-            }, epoch)
-        else:
-            tb_writer.add_scalar('Loss/train', train_loss_epoch, epoch)
-            if epoch % 25 == 0:
-                print("\nModel Saved")
-                torch.save(unet.state_dict(), savename)
-
+        train_loss_list.append(train_loss_epoch)
+        val_loss_list.append(val_loss_epoch)
         gc.collect()
         torch.cuda.empty_cache()
-        # r = torch.cuda.memory_reserved(0)
-        # a = torch.cuda.memory_allocated(0)
-        # print(f"\nReserved:  {r * 1e-9:.2f} GB")
-        # print(f"Allocated: {a * 1e-9:.2f} GB")
 
-    tb_writer.close()
+    utils.plot_losses(train_loss_list, val_loss_list, filename=f'{savename}_loss.png')
     evaluate_unet(unet, val_loader, val_metrics)
 
 
@@ -152,18 +141,23 @@ def save_metrics(savename, val_metrics):
         names=['fold', 'metric']
     )
     col_idxs = pd.MultiIndex.from_product([range(n_classes)], names=['class'])
-
     metrics_frame = pd.DataFrame(np.vstack(fold_arrays), index=row_idxs, columns=col_idxs)
+    avgs = calc_metric_avgs(metrics_frame, list(val_metrics.keys()))
+    metrics_frame = pd.concat([metrics_frame, avgs])
     metrics_frame.to_csv(f'{savename}metrics.csv')
     return metrics_frame
 
 
-def calc_metric_avgs(metrics_df, metrics_name):
+def calc_metric_avgs(metrics_frame, metrics_name):
     avgs = []
     for metric in metrics_name:
-        avgs.append(metrics_df.xs(metric, level=1).mean())
+        avgs.append(metrics_frame.xs(metric, level=1).mean())
 
-    return pd.DataFrame(avgs, index=metrics_name)
+    row_idxs = pd.MultiIndex.from_product(
+        [['avg'], metrics_name],
+        names=['fold', 'metric']
+    )
+    return pd.DataFrame(avgs, index=row_idxs)
 
 
 def load_unet(filename, channels=2, levels=4):
@@ -201,18 +195,17 @@ def check_predictions(unet, val_loader, loss):
             # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
-def train_unet(unet, filename, train_settings, dataloader_settings):
+def train_unet(unet, foldername, train_settings, dataloader_settings):
     val_metrics = {'p': [], 'r': [], 'f1': [], }
 
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,use_cuda=True) as prof:
     #     train_unet(unet, **train_settings)
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
-    os.makedirs(filename, exist_ok=True)
     kf_loader = KFoldLoaders(**dataloader_settings)
     for fold, (train_loader, val_loader) in enumerate(kf_loader):
         print(f'Fold #{fold}')
-        train_loop(unet, train_loader, val_loader, f'{filename}fold_{fold}.pt', val_metrics, **train_settings)
+        train_loop(unet, train_loader, val_loader, f'{foldername}fold_{fold}', val_metrics, **train_settings)
         del train_loader.dataset.aug_imgs, train_loader.dataset.aug_segs
         del val_loader.dataset.aug_imgs, val_loader.dataset.aug_segs
         del train_loader, val_loader
@@ -221,42 +214,49 @@ def train_unet(unet, filename, train_settings, dataloader_settings):
         gc.collect()
         torch.cuda.empty_cache()
 
-    metrics_frame = save_metrics(filename, val_metrics)
-    avg_df = calc_metric_avgs(metrics_frame, list(val_metrics.keys()))
-    print(avg_df)
+    metrics_frame = save_metrics(foldername, val_metrics)
+    print(metrics_frame.xs('avg'))
     # check_predictions(load_unet(filename, channels=n_ch, levels=levels), val_loader, loss_func)
 
 
 if __name__ == '__main__':
-    class_weights = torch.tensor([0.1, 1, 1, 1.5], device='cuda:0')
-    loss_func = dl.metrics.FscoreLoss(class_weights=class_weights, f1_weight=0.6)
-    filename = "checkpoints/unet1_no_aug/"
-    unet = Unet(output_ch=class_weights.size()[0], levels=4).cuda()
-    dataset = CamusDatasetPNG()
     # unet = load_unet(filename, channels=n_ch, levels=levels)
-    pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
-    print(f'Trainable parameters: {pytorch_total_params}')
-    print(f'Feature maps: {unet.channels}')
+
+    levels = 4
+    unet = Unet(output_ch=4, levels=levels, top_feature_ch=64).cuda()
 
     train_settings = {
-        "epochs": 10,
-        "loss_func": loss_func,
-        "optimizer": optim.Adam(unet.parameters(), lr=1e-4, weight_decay=1e-4),
-        "do_val": True
+        "epochs": 40,
+        "do_val": True,
+        "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.1, 1, 1, 1.5], device='cuda:0'),
+                                           f1_weight=0.7),
+        "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-4),
     }
 
     dataloader_settings = {
-        "batch_size": 4,
-        "split": 5,
-        "dataset": dataset,
+        "batch_size": 8,
+        "split": 10,
+        "dataset": CamusDatasetPNG(),
         "augment": True,
     }
 
-    train_unet(unet, filename, train_settings, dataloader_settings)
+    foldername = f"train_results/unet_{levels}levels_augment_{dataloader_settings['augment']}_64top/"
+    pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
+    print(f'Trainable parameters: {pytorch_total_params}')
+    print(f'Feature maps: {unet.channels}')
+    os.makedirs(foldername, exist_ok=True)
+    with open(f'{foldername}settings.txt', 'w') as file:
+        for dict in [dataloader_settings, train_settings]:
+            for key, value in dict.items():
+                file.write(f'{key}: {value}\n')
+        file.write(f'{unet}')
+
+    train_unet(unet, foldername, train_settings, dataloader_settings)
 
     ''' TODO
         - change aug params
         - loss graph per fold
         - store scores for each patient
         - test augmentation
+        - check aug refill rate
     '''

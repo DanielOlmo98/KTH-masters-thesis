@@ -91,6 +91,10 @@ class Unet(nn.Module):
 
         self.end = nn.Conv2d(self.channels[0], output_ch, kernel_size=(1, 1), padding='same')
 
+    def __str__(self):
+        return f'Unet:\n    Levels: {self.channels.size()[0]}\n    Features per level: {self.channels}\n    ' \
+               f'Pooling layer: {self.pooling_layer}'
+
     def forward(self, x):
         features = self.contracting_path(x)
         output = self.expanding_path(features[::-1][0], features[::-1][1:])  # reverse

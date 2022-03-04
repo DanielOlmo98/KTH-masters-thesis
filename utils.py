@@ -164,5 +164,19 @@ def slice_view_3d(volume):
     return
 
 
+def plot_losses(train_losses, val_losses, show=True, filename=None, title='Losses'):
+    plt.figure(figsize=(10, 5))
+    plt.title(title)
+    plt.plot(train_losses, label='train_loss')
+    plt.plot(val_losses, label='val_loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    if filename is not None:
+        plt.savefig(filename)
+    if show:
+        plt.show()
+
+
 if __name__ == '__main__':
     print(get_project_root())
