@@ -229,7 +229,7 @@ if __name__ == '__main__':
     unet = Unet(output_ch=4, levels=levels, top_feature_ch=top_features).cuda()
 
     train_settings = {
-        "epochs": 60,
+        "epochs": 3,
         "do_val": True,
         "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.1, 1, 1, 1.5], device='cuda:0'),
                                            f1_weight=0.7),

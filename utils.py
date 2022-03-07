@@ -49,7 +49,6 @@ def load_images(path=(get_project_root() + '/image/')):
             continue
 
         image = imread(common_file_path)
-        # image = image[80:550, 80:720]
         if image.ndim == 3:
             image = color.rgb2gray(image)
         images.append(img_as_float32(image))

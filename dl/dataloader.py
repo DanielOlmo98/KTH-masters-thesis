@@ -103,7 +103,8 @@ class MySubset(Dataset):
 
 class KFoldLoaders:
     """
-    Uses sklearn KFold to create and iterator that returns loaders
+    Uses sklearn KFold to create and iterator that returns training and validation loaders.
+    comMMEnt more
     """
 
     def __init__(self, batch_size, split, dataset, augment=False):
@@ -130,6 +131,16 @@ class KFoldLoaders:
 
 
 def get_loaders(batch_size, dataset, train_indices, val_indices):
+    """
+    Splits the dataset into train and validation subsets given indices, then creates loaders for each of them.
+    Validation loader batch size is set to 2 for memory reasons.
+    Unused as the class KFoldLoaders implements k-folds and loader creation in one.
+    :param batch_size: Batch size of the training loader.
+    :param dataset: Dataset to create loaders for.
+    :param train_indices: Indices of the dataset that will be split to the training loader.
+    :param val_indices: Indices of the dataset that will be split to the validation loader.
+    :return: Training and validation loaders.
+    """
     train_data = Subset(dataset, indices=train_indices)
     val_data = Subset(dataset, indices=val_indices)
 
@@ -139,6 +150,10 @@ def get_loaders(batch_size, dataset, train_indices, val_indices):
 
 
 def get_transforms():
+    """
+    Get array of transforms used for data augmentation, including a numpy to tensor conversion.
+    :return: Array of transforms.
+    """
     return [
         # A.Normalize(max_pixel_value=1.0),
         A.HorizontalFlip(p=0.5),
@@ -150,6 +165,10 @@ def get_transforms():
 
 
 class DataAugmentation(nn.Module):
+    """
+    Kornia augmentation class, unused as elastic transforms don't seem to work on CUDA tensors
+    """
+
     def __init__(self):
         super(DataAugmentation, self).__init__()
         self.transforms = kornia.augmentation.container.ImageSequential(
@@ -170,6 +189,11 @@ class DataAugmentation(nn.Module):
 
 
 class CamusDataset(Dataset):
+    """
+    Dataset class that uses the original .mhd files from the dataset.
+    It will resize the files from disk and augment them as requested.
+    """
+
     def __init__(self, augment=False, img_size=256, set="training/", binary=False):
         self.data_path = utils.get_project_root() + "/dataset/" + set
         self.img_paths, self.seg_paths = get_image_paths(self.data_path)
@@ -207,6 +231,13 @@ class CamusDataset(Dataset):
 
 
 def get_image_paths(data_path, extension=".mhd"):
+    """
+    Returns lists of the paths of the images and ground truth of a file type.
+    Ground truth file name must end with _gt.extension
+    :param data_path: Data path containing patient folders with the data.
+    :param extension: Extension of the image and ground truth files.
+    :return: A list of image path and ground truth paths.
+    """
     gt_paths = []
     img_paths = []
     for patient_folder in os.listdir(data_path):
@@ -220,6 +251,10 @@ def get_image_paths(data_path, extension=".mhd"):
 
 
 def dataset_convert():
+    """
+    Converts the dataset into PNG format
+
+    """
     resize = A.Resize(256, 256)
     dataset_path = utils.get_project_root() + '/dataset/' + 'training/'
     converted_path = utils.get_project_root() + '/dataset/' + 'camus_png/'
