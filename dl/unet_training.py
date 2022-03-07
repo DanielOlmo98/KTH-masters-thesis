@@ -53,6 +53,8 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
 
         train_loss_list.append(train_loss_epoch)
         val_loss_list.append(val_loss_epoch)
+        # print(f'Augmenting {train_loader.dataset.q.qsize()} images...')
+        train_loader.dataset.q.join()  # wait until all augmentation queue is done
 
     utils.plot_losses(train_loss_list, val_loss_list, filename=f'{savename}_loss.png')
     evaluate_unet(unet, val_loader, val_metrics)
@@ -222,11 +224,12 @@ def train_unet(unet, foldername, train_settings, dataloader_settings):
 if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
-    levels = 4
-    unet = Unet(output_ch=4, levels=levels, top_feature_ch=64).cuda()
+    levels = 5
+    top_features = 64
+    unet = Unet(output_ch=4, levels=levels, top_feature_ch=top_features).cuda()
 
     train_settings = {
-        "epochs": 40,
+        "epochs": 60,
         "do_val": True,
         "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.1, 1, 1, 1.5], device='cuda:0'),
                                            f1_weight=0.7),
@@ -240,7 +243,7 @@ if __name__ == '__main__':
         "augment": True,
     }
 
-    foldername = f"train_results/unet_{levels}levels_augment_{dataloader_settings['augment']}_64top/"
+    foldername = f"train_results/unet_{levels}levels_augment_{dataloader_settings['augment']}_{top_features}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
     print(f'Feature maps: {unet.channels}')
@@ -257,5 +260,6 @@ if __name__ == '__main__':
         - change aug params
         - store scores for each patient
         - test augmentation
-        - check aug refill rate
+        - add more augmentation threads?
     '''
+

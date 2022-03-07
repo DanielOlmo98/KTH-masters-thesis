@@ -68,7 +68,7 @@ class MySubset(Dataset):
         self.augment_dataset()
         if self.augment:
             self.q = queue.Queue()
-            threading.Thread(target=self.augment_idx, daemon=True).start()
+            self.thread = threading.Thread(target=self.augment_idx, daemon=True).start()
 
     def __getitem__(self, idx):
         # if isinstance(idx, list):
@@ -91,11 +91,14 @@ class MySubset(Dataset):
         return
 
     def augment_idx(self):
-        idx = self.q.get()
-        img, seg = self.dataset[self.indices[idx]]
-        augmented = self.transformer(image=img, mask=seg)
-        self.aug_imgs[idx] = (augmented['image'].type(torch.float32).div(255.).to('cuda'))
-        self.aug_segs[idx] = (one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
+        while True:
+            idx = self.q.get()
+            img, seg = self.dataset[self.indices[idx]]
+            augmented = self.transformer(image=img, mask=seg)
+            self.aug_imgs[idx] = (augmented['image'].type(torch.float32).div(255.).to('cuda'))
+            self.aug_segs[idx] = (
+                one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
+            self.q.task_done()
 
 
 class KFoldLoaders:

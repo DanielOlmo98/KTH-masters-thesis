@@ -172,6 +172,7 @@ def plot_losses(train_losses, val_losses, show=True, filename=None, title='Losse
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
+    plt.ylim([0, 3])
     if filename is not None:
         plt.savefig(filename)
     if show:
