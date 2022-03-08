@@ -13,8 +13,6 @@ import cv2
 import utils
 
 
-# TODO: total variation optimization problem denoise
-
 def srad_test(image, steps, step_size, overlay=None):
     from noise_filtering.SRAD.PyRAD_SRAD import cy_srad
 
@@ -172,10 +170,11 @@ if __name__ == '__main__':
     image = cv2.copyMakeBorder(
         image, ground_truth.shape[0] - image.shape[0], 0, 0, 0, borderType=cv2.BORDER_CONSTANT, value=0)
 
-    wavelet_plot(image)
+    # wavelet_plot(image)
     utils.plot_image_g(image, title='Noised', overlay_img=segmentation)
     # utils.plot_image_g(ground_truth, title='Original', overlay_img=segmentation)
-    utils.plot_image_g(wavelet_denoise(image, sigma=0.1), title='Wavelte denoise')
+    utils.plot_image_g(wavelet_denoise(image, sigma=0.08, mode='bayes'), title='Wavelet denoise bayes')
+    # utils.plot_image_g(wavelet_denoise(image, sigma=0.015, mode='visu'), title='Wavelet denoise visu')
     # utils.plot_image_g(skimage_wavelet_denoise(image))
     #
     # step_list = [150]

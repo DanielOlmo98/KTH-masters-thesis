@@ -15,103 +15,154 @@ from skimage.io import imread, imsave
 from torch.nn.functional import one_hot
 from torch.utils.data import Dataset
 from torch.utils.data.dataset import T_co
-
+from itertools import cycle
 import utils
 
 
 class CamusDatasetPNG(Dataset):
     """
-    Loads the dataset into CPU memory, then creates an augmented copy in GPU memory.
-    When a sample is requested it is returned from the GPU and put in an asynchronous queue that augments the sample
-    from CPU and refills the GPU dataset.
+    Loads the dataset into CPU memory. It also keeps track if an images is end systole (ES) or end diastole (ED).
     """
 
-    def __init__(self):
-        self.imgs, self.segs = self.load_np()
+    def __init__(self, path="/dataset/camus_png/"):
+        self.imgs, self.segs, self.ED_or_ES = self._load_np(path)
 
     def __len__(self):
         return len(self.imgs)
 
     def __getitem__(self, idx):
-        return self.imgs[idx], self.segs[idx]
+        return self.imgs[idx], self.segs[idx], self.ED_or_ES[idx]
 
-    def load_np(self):
-        data_path = utils.get_project_root() + "/dataset/camus_png/"
+    def _load_np(self, path):
+        data_path = utils.get_project_root() + path
         img_paths, seg_paths = get_image_paths(data_path, extension='.png')
         img_list = []
         seg_list = []
+        ED_or_ES = []
 
         for img_p, seg_p in zip(img_paths, seg_paths):
             img = cv2.imread(img_p, 0)
             img_list.append(img)
             seg = cv2.imread(seg_p, 0)
             seg_list.append(seg)
+            if 'ED' in img_p[-7:]:
+                ED_or_ES.append('ED')
+            elif 'ES' in img_p[-7]:
+                ED_or_ES.append('ES')
+            else:
+                ED_or_ES.append(0)
 
-        return img_list, seg_list
+        return img_list, seg_list, ED_or_ES
 
     def __str__(self):
         return f'{type(self)}\n    n_images: {len(self)}'
 
 
 class MySubset(Dataset):
-    def __init__(self, dataset, indices, augment=True):
+    """
+    Creates a subset of a dataset in GPU memory, this subset handles augmentation so that different augmentation can
+    be used for different subsets (for example augmentation in train but not in val). There is an optional threaded
+    queue that queues elements for re-augmentation when they are returned, this 'refills' the augmented elemts so a
+    new augmented version of the element is returned each time. The class keeps a reference to the parent dataset,
+    the indices of the parent dataset that are in the subclass.
+
+    The parent dataset is expected to be in numpy array format, images in grayscale with intensities 0 to 255,
+    and the segmentations label encoded. The subset will convert the data to pytorch tensors, one-hot encode the
+    labels and change the intensity range of the image form 0 to 1.
+
+    A copy of the subset of the parent dataset indicated by the indices will be transformed. If the queue is enabled,
+    when an element is requested and returned it will be put in a queue to be substituted by a new augmentation of
+    the element. The elements in the queue will be augmented in parallel in another thread.
+
+    To wait for the queue to finish augmenting use the 'join()' method in self.q
+    """
+
+    def __init__(self, dataset, indices, augment_queue=False, transformer=None, n_queues=1):
+        """
+        :param dataset: Dataset that returns images and segmentations as numpy arrays. Image intensity must be in the
+                        range 0-255. Segmentations must be label encoded.
+        :param indices: List of indices of the parent dataset that will form the subset
+        :param augment_queue: Bool whether to queue returned elements for re-augmentation.
+        :param transformer: List of transforms to apply both in the full subset augmentation and the queue if enabled.
+        """
+
         self.dataset = dataset
         self.indices = indices
         self.aug_imgs = []
         self.aug_segs = []
-        self.augment = augment
-        if self.augment:
-            self.transformer = A.Compose(get_transforms())
-        else:
-            self.transformer = A.Compose([A.pytorch.ToTensorV2()])
+        self.augment_queue = augment_queue
 
-        self.augment_dataset()
-        if self.augment:
-            self.q = queue.Queue()
-            self.thread = threading.Thread(target=self.augment_idx, daemon=True).start()
+        if transformer is None:
+            transformer = [A.pytorch.ToTensorV2()]
+        self.transformer = A.Compose(transformer)
+
+        self._augment_dataset()
+        if self.augment_queue:  # todo remove this bool and use n_threads only
+            q_list = []
+            self.thread_list = []
+            for i in range(n_queues):
+                q = queue.Queue()
+                q_list.append(q)
+                self.thread_list.append(
+                    threading.Thread(target=self._augment_idx, daemon=True, args=([q])).start())
+                self.q_cycler = cycle(q_list)
 
     def __getitem__(self, idx):
         # if isinstance(idx, list):
         #     return self._get_item([[self.indices[i] for i in idx]])
-        if self.augment:
-            self.q.put(idx)
-        return self.aug_imgs[idx], self.aug_segs[idx]
+        if self.augment_queue:
+            q = next(self.q_cycler)
+            q.put(idx)
+        return self.aug_imgs[idx], self.aug_segs[idx], self.dataset.ED_or_ES[idx]
 
     def __len__(self):
         return len(self.indices)
 
-    def augment_dataset(self):
-        for img, seg in [self.dataset[i] for i in self.indices]:
+    def _augment_dataset(self):
+        """
+        Augments the whole subset.
+        """
+        for img, seg, _ in [self.dataset[i] for i in self.indices]:
             augmented = self.transformer(image=img, mask=seg)
             self.aug_imgs.append(augmented['image'].type(torch.float32).div(255.).to('cuda'))
             self.aug_segs.append(
                 one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
             gc.collect()
             torch.cuda.empty_cache()
-        return
 
-    def augment_idx(self):
+    def _augment_idx(self, q):
+        """
+        Augments the indices in the queue.
+        """
         while True:
-            idx = self.q.get()
-            img, seg = self.dataset[self.indices[idx]]
+            idx = q.get()
+            img, seg, _ = self.dataset[self.indices[idx]]
             augmented = self.transformer(image=img, mask=seg)
             self.aug_imgs[idx] = (augmented['image'].type(torch.float32).div(255.).to('cuda'))
             self.aug_segs[idx] = (
                 one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
-            self.q.task_done()
+            q.task_done()
 
 
 class KFoldLoaders:
     """
-    Uses sklearn KFold to create and iterator that returns training and validation loaders.
-    comMMEnt more
+    Uses sklearns KFold to create and iterator that returns training and validation loaders for each fold.
     """
 
-    def __init__(self, batch_size, split, dataset, augment=False):
+    def __init__(self, batch_size, split, dataset, augment_queue=False, augments=None, n_queues=1):
+        """
+        Creates the KFold loaders iterator.
+        :param batch_size: Batch size of the train loader.
+        :param split: How many folds to split the dataset in.
+        :param dataset: Dataset to split.
+        :param augment_queue: Bool whether to augment the test set or not.
+        """
         self.dataset = dataset
         self.kf = KFold(n_splits=split).split(self.dataset)
         self.batch_size = batch_size
-        self.augment = augment
+        self.augment_queue = augment_queue
+        self.augments = augments
+        self.n_queues = n_queues
 
     def __iter__(self):
         return self
@@ -119,8 +170,9 @@ class KFoldLoaders:
     def __next__(self):
         train_indices, val_indices = next(self.kf)
 
-        train_data = MySubset(self.dataset, indices=train_indices, augment=self.augment)
-        val_data = MySubset(self.dataset, indices=val_indices, augment=False)
+        train_data = MySubset(self.dataset, indices=train_indices, augment_queue=self.augment_queue,
+                              transformer=self.augments, n_queues=self.n_queues)
+        val_data = MySubset(self.dataset, indices=val_indices, augment_queue=False)
 
         train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True, num_workers=0)
         val_loader = DataLoader(val_data, batch_size=1, shuffle=True, num_workers=0)
@@ -149,16 +201,17 @@ def get_loaders(batch_size, dataset, train_indices, val_indices):
     return train_loader, val_loader
 
 
-def get_transforms():
+def get_transforms(h_flip_p, elastic_alpha, elastic_sigma, elastic_affine, bright_lim, contrast_lim):
     """
     Get array of transforms used for data augmentation, including a numpy to tensor conversion.
     :return: Array of transforms.
     """
     return [
         # A.Normalize(max_pixel_value=1.0),
-        A.HorizontalFlip(p=0.5),
-        A.ElasticTransform(p=1, alpha=110, sigma=15, alpha_affine=7, border_mode=0),
-        A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=0.4, contrast_limit=0.2),
+        A.HorizontalFlip(p=h_flip_p),
+        A.ElasticTransform(p=1, alpha=elastic_alpha, sigma=elastic_sigma, alpha_affine=elastic_affine, border_mode=0),
+        A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=bright_lim,
+                                   contrast_limit=contrast_lim),
         A.pytorch.ToTensorV2(),
 
     ]
@@ -166,7 +219,8 @@ def get_transforms():
 
 class DataAugmentation(nn.Module):
     """
-    Kornia augmentation class, unused as elastic transforms don't seem to work on CUDA tensors
+    Kornia augmentation class, unused as elastic transforms don't seem to work on CUDA tensors so albumentations is a
+    better alternative.
     """
 
     def __init__(self):
@@ -250,14 +304,13 @@ def get_image_paths(data_path, extension=".mhd"):
     return img_paths, gt_paths
 
 
-def dataset_convert():
+def dataset_convert(folder_save_name, img_preprocess_func=None):
     """
-    Converts the dataset into PNG format
-
+    Resizes and saves the dataset into PNG format with optional additional transformation with a function.
     """
     resize = A.Resize(256, 256)
     dataset_path = utils.get_project_root() + '/dataset/' + 'training/'
-    converted_path = utils.get_project_root() + '/dataset/' + 'camus_png/'
+    converted_path = utils.get_project_root() + '/dataset/' + folder_save_name + '/'
 
     img_paths, seg_paths = get_image_paths(dataset_path)
 
@@ -267,8 +320,12 @@ def dataset_convert():
 
     for img_path, seg_path in zip(img_paths, seg_paths):
         data = resize(image=imread(img_path)[0], mask=imread(seg_path)[0])
-        imsave(converted_path + img_path[31:-3] + 'png', data['image'])
-        imsave(converted_path + seg_path[31:-3] + 'png', data['mask'])
+        image = data['image']
+        mask = data['mask']
+        if img_preprocess_func is not None:
+            img, mask = img_preprocess_func(image, mask)
+        imsave(converted_path + img_path[31:-3] + 'png', image)
+        imsave(converted_path + seg_path[31:-3] + 'png', mask)
 
 
 def timetest():

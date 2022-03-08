@@ -11,6 +11,8 @@ https://scikit-image.org/docs/dev/auto_examples/filters/plot_denoise_wavelet.htm
 
 
 def wavelet_denoise(img, sigma=0.1, mode='visu'):
+    if mode not in ['visu', 'bayes']:
+        raise ValueError("Mode must be either 'visu' or 'bayes'")
     wavelet = 'db1'
     max_lvl = pywt.dwtn_max_level(img.shape, wavelet)
     coeffs = pywt.wavedec2(img, wavelet, level=max_lvl - 3)

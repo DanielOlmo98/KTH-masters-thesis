@@ -4,7 +4,7 @@ import odl
 import matplotlib.pyplot as plt
 import numpy as np
 from utils import get_project_root, plot_image_g, normalize_0_1, normalize_neg1_to_1, heightmap, symmetric_threshold
-from noise_filtering.main import load_images
+from noise_filtering.denoise_tests import load_images
 from scipy.stats import variation
 from scipy.ndimage.filters import gaussian_filter
 
