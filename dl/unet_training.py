@@ -48,8 +48,10 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
 
         train_loss_list.append(train_loss_epoch)
         val_loss_list.append(val_loss_epoch)
-        # print(f'Augmenting {train_loader.dataset.q.qsize()} images...')
-        train_loader.dataset.q.join()  # wait until all augmentation queue is done
+
+        # Wait for augmentation queues to finish if there are any
+        if train_loader.dataset.n_aug_threads > 0:
+            train_loader.dataset.join_queues()
 
     utils.plot_losses(train_loss_list, val_loss_list, filename=f'{savename}_loss.png')
     evaluate_unet(unet, val_loader, val_metrics)
@@ -107,10 +109,10 @@ def evaluate_unet(unet, val_loader, val_metrics):
             for i in range(img.shape[0]):
                 for n in range(n_classes):
                     # append 1x3 tensor per class containing precision recall and f1 for the class
-                    if ED_or_ES[i] == 'ED':
+                    if ED_or_ES[i] == 1:
                         metric_lists_ED[n].append(dl.metrics.get_f1_metrics(prediction[:, n, :, :], seg[:, n, :, :]))
-                    elif ED_or_ES[i] == 'ES':
-                        metric_lists_ED = [[] for _ in range(n_classes)]  # one list per class
+                    elif ED_or_ES[i] == 2:
+                        metric_lists_ES[n].append(dl.metrics.get_f1_metrics(prediction[:, n, :, :], seg[:, n, :, :]))
 
             next_batch = next(val_loader)
 
@@ -151,8 +153,7 @@ def save_metrics(savename, val_metrics_ES_and_ED):
         avgs = calc_metric_avgs(metrics_frame, list(val_metrics.keys()))
         m_frames.append(pd.concat([metrics_frame, avgs]))
 
-    col_idxs = pd.MultiIndex.from_product(list(val_metrics_ES_and_ED.keys()))
-    metrics_frame_full = pd.DataFrame(m_frames, index=col_idxs)
+    metrics_frame_full = pd.concat(m_frames, keys=list(val_metrics_ES_and_ED.keys()), axis=1)
     metrics_frame_full.to_csv(f'{savename}metrics.csv')
     return metrics_frame_full
 
@@ -224,7 +225,10 @@ def train_unet(unet, foldername, train_settings, dataloader_settings):
         torch.cuda.empty_cache()
 
     metrics_frame = save_metrics(foldername, val_metrics)
-    print(metrics_frame.xs('avg'))
+    print('ED\n')
+    print(metrics_frame.xs('avg').xs('ED', axis=1))
+    print('ES\n')
+    print(metrics_frame.xs('avg').xs('ES', axis=1))
     # check_predictions(load_unet(filename, channels=n_ch, levels=levels), val_loader, loss_func)
 
 
@@ -236,7 +240,7 @@ if __name__ == '__main__':
     unet = Unet(output_ch=4, levels=levels, top_feature_ch=top_features).cuda()
 
     train_settings = {
-        "epochs": 70,
+        "epochs": 1,
         "do_val": True,
         "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.1, 1, 1, 1.5], device='cuda:0'),
                                            f1_weight=0.7),
@@ -255,13 +259,15 @@ if __name__ == '__main__':
 
     dataloader_settings = {
         "batch_size": 8,
-        "split": 8,
+        "split": 2,
         "dataset": CamusDatasetPNG(),
-        "augment_queue": True,
-        "augments": get_transforms(**aug_settings),
+        # "augments": get_transforms(**aug_settings),
+        "augments": None,
+        "n_train_aug_threads": 2,
     }
 
-    foldername = f"train_results/unet_{levels}levels_augment_{dataloader_settings['augment_queue']}_{top_features}top/"
+    foldername = f"train_results/0unet_{levels}levels_augment_{dataloader_settings['augments'] is not None}" \
+                 f"_{top_features}top/ "
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
     print(f'Feature maps: {unet.channels}')

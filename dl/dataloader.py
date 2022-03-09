@@ -46,13 +46,13 @@ class CamusDatasetPNG(Dataset):
             seg = cv2.imread(seg_p, 0)
             seg_list.append(seg)
             if 'ED' in img_p[-7:]:
-                ED_or_ES.append('ED')
-            elif 'ES' in img_p[-7]:
-                ED_or_ES.append('ES')
+                ED_or_ES.append(1)
+            elif 'ES' in img_p[-7:]:
+                ED_or_ES.append(2)
             else:
                 ED_or_ES.append(0)
 
-        return img_list, seg_list, ED_or_ES
+        return img_list, seg_list, torch.tensor(ED_or_ES)
 
     def __str__(self):
         return f'{type(self)}\n    n_images: {len(self)}'
@@ -77,7 +77,8 @@ class MySubset(Dataset):
     To wait for the queue to finish augmenting use the 'join()' method in self.q
     """
 
-    def __init__(self, dataset, indices, augment_queue=False, transformer=None, n_queues=1):
+    # todo update this documentation
+    def __init__(self, dataset, indices, transformer=None, n_aug_threads=1):
         """
         :param dataset: Dataset that returns images and segmentations as numpy arrays. Image intensity must be in the
                         range 0-255. Segmentations must be label encoded.
@@ -85,32 +86,41 @@ class MySubset(Dataset):
         :param augment_queue: Bool whether to queue returned elements for re-augmentation.
         :param transformer: List of transforms to apply both in the full subset augmentation and the queue if enabled.
         """
-
         self.dataset = dataset
         self.indices = indices
         self.aug_imgs = []
         self.aug_segs = []
-        self.augment_queue = augment_queue
+        self.n_aug_threads = n_aug_threads
 
         if transformer is None:
             transformer = [A.pytorch.ToTensorV2()]
-        self.transformer = A.Compose(transformer)
-
-        self._augment_dataset()
-        if self.augment_queue:  # todo remove this bool and use n_threads only
-            q_list = []
+            self.transformer = A.Compose(transformer)
+            self._augment_dataset()
+            self.n_aug_threads = 0
+        else:
+            self.transformer = A.Compose(transformer)
+            if self.n_aug_threads < 1:
+                raise ValueError('Must have at least 1 thread for augmentation')
+            self.q_list = []
             self.thread_list = []
-            for i in range(n_queues):
+            split_indices = np.array_split(range(len(self.indices)), self.n_aug_threads)
+            for i in range(self.n_aug_threads):
                 q = queue.Queue()
-                q_list.append(q)
+                self.q_list.append(q)
                 self.thread_list.append(
                     threading.Thread(target=self._augment_idx, daemon=True, args=([q])).start())
-                self.q_cycler = cycle(q_list)
+                self.q_cycler = cycle(self.q_list)
+                self.aug_imgs = [None] * len(self.indices)
+                self.aug_segs = [None] * len(self.indices)
+                for idx in split_indices[i]:
+                    q.put(idx)
+
+            self.join_queues()
 
     def __getitem__(self, idx):
         # if isinstance(idx, list):
         #     return self._get_item([[self.indices[i] for i in idx]])
-        if self.augment_queue:
+        if self.n_aug_threads > 0:
             q = next(self.q_cycler)
             q.put(idx)
         return self.aug_imgs[idx], self.aug_segs[idx], self.dataset.ED_or_ES[idx]
@@ -142,6 +152,17 @@ class MySubset(Dataset):
             self.aug_segs[idx] = (
                 one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
             q.task_done()
+            if q.qsize() % 100 == 0:
+                print(f'Augmenting {q.qsize()} images...')
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    def join_queues(self):
+        for q in self.q_list:
+            q.join()
+
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 class KFoldLoaders:
@@ -149,20 +170,18 @@ class KFoldLoaders:
     Uses sklearns KFold to create and iterator that returns training and validation loaders for each fold.
     """
 
-    def __init__(self, batch_size, split, dataset, augment_queue=False, augments=None, n_queues=1):
+    def __init__(self, batch_size, split, dataset, augments=None, n_train_aug_threads=1):
         """
         Creates the KFold loaders iterator.
         :param batch_size: Batch size of the train loader.
         :param split: How many folds to split the dataset in.
         :param dataset: Dataset to split.
-        :param augment_queue: Bool whether to augment the test set or not.
         """
         self.dataset = dataset
         self.kf = KFold(n_splits=split).split(self.dataset)
         self.batch_size = batch_size
-        self.augment_queue = augment_queue
         self.augments = augments
-        self.n_queues = n_queues
+        self.n_train_aug_threads = n_train_aug_threads
 
     def __iter__(self):
         return self
@@ -170,9 +189,9 @@ class KFoldLoaders:
     def __next__(self):
         train_indices, val_indices = next(self.kf)
 
-        train_data = MySubset(self.dataset, indices=train_indices, augment_queue=self.augment_queue,
-                              transformer=self.augments, n_queues=self.n_queues)
-        val_data = MySubset(self.dataset, indices=val_indices, augment_queue=False)
+        train_data = MySubset(self.dataset, indices=train_indices, transformer=self.augments,
+                              n_aug_threads=self.n_train_aug_threads)
+        val_data = MySubset(self.dataset, indices=val_indices, n_aug_threads=0)
 
         train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True, num_workers=0)
         val_loader = DataLoader(val_data, batch_size=1, shuffle=True, num_workers=0)
