@@ -225,9 +225,9 @@ def train_unet(unet, foldername, train_settings, dataloader_settings):
         torch.cuda.empty_cache()
 
     metrics_frame = save_metrics(foldername, val_metrics)
-    print('ED\n')
+    print('ED')
     print(metrics_frame.xs('avg').xs('ED', axis=1))
-    print('ES\n')
+    print('\nES')
     print(metrics_frame.xs('avg').xs('ES', axis=1))
     # check_predictions(load_unet(filename, channels=n_ch, levels=levels), val_loader, loss_func)
 
@@ -240,9 +240,9 @@ if __name__ == '__main__':
     unet = Unet(output_ch=4, levels=levels, top_feature_ch=top_features).cuda()
 
     train_settings = {
-        "epochs": 1,
+        "epochs": 60,
         "do_val": True,
-        "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.1, 1, 1, 1.5], device='cuda:0'),
+        "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.01, 1, 1, 1], device='cuda:0'),
                                            f1_weight=0.7),
         "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-4),
     }
@@ -259,14 +259,14 @@ if __name__ == '__main__':
 
     dataloader_settings = {
         "batch_size": 8,
-        "split": 2,
+        "split": 8,
         "dataset": CamusDatasetPNG(),
         # "augments": get_transforms(**aug_settings),
         "augments": None,
         "n_train_aug_threads": 2,
     }
 
-    foldername = f"train_results/0unet_{levels}levels_augment_{dataloader_settings['augments'] is not None}" \
+    foldername = f"train_results/unet_{levels}levels_augment_{dataloader_settings['augments'] is not None}" \
                  f"_{top_features}top/ "
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
@@ -285,4 +285,6 @@ if __name__ == '__main__':
         - store scores for each patient
         - test augmentation
         - add more augmentation threads?
+        - skip splits
+        - move eval to different file
     '''
