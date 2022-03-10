@@ -8,6 +8,8 @@ from matplotlib.colors import ListedColormap
 from skimage.io import imread
 from skimage import color, img_as_float32
 
+import cv2
+
 
 def binarize(img, threshold=0.5):
     img[img >= threshold] = 1
@@ -57,7 +59,9 @@ def load_images(path=(get_project_root() + '/image/')):
 
 def plot_image_g(img, overlay_img=None, title=None, ax=None, cmap_overlay=None, alpha_overlay=0.2):
     if cmap_overlay is None:
-        cmap_overlay = ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
+        # cmap_overlay = ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
+        colors = ['none', 'gold', 'lime', 'blue', 'red']
+        cmap_overlay = ListedColormap(['none', *colors])
 
     if ax is None:
         plt.figure(figsize=np.divide(img.shape[::-1], 100))
@@ -121,12 +125,31 @@ def heightmap(array, ax=None, title=None, elev=None, azim=None):
         return ax
 
 
-def load_test_img():
+def load_patient(patient='0001', CH=2, ED_or_ES='ED', png=False, rotate=False):
     from medpy.io.load import load
-    path = get_project_root() + '/dataset/training/patient0001/patient0001_2CH_ED.mhd'
-    img, header = load(path)
-    img = np.rot90(img, axes=(1, 0))
-    return img, header
+    if png:
+        dataset_path = 'camus_png'
+        filetype = '.png'
+    else:
+        dataset_path = 'training'
+        filetype = '.mhd'
+
+    patient_path = get_project_root() + \
+                   f'/dataset/{dataset_path}/patient{patient}/patient{patient}_{CH}CH_{ED_or_ES}'
+    img_path = patient_path + filetype
+    seg_path = patient_path + '_gt' + filetype
+
+    if png:
+        img = cv2.imread(img_path, 0)
+        seg = cv2.imread(seg_path, 0)
+        return img, seg
+    else:
+        img, img_header = load(img_path)
+        seg, seg_header = load(seg_path)
+        if rotate:
+            img = np.rot90(img, axes=(1, 0))
+            seg = np.rot90(seg, axes=(1, 0))
+        return img, img_header, seg, seg_header
 
 
 def slice_view_3d(volume):
@@ -179,4 +202,13 @@ def plot_losses(train_losses, val_losses, show=True, filename=None, title='Losse
 
 
 if __name__ == '__main__':
-    print(get_project_root())
+    from torch.nn.functional import one_hot
+    import torch
+
+    img, seg = load_patient(png=True, patient='0003', ED_or_ES='ED', CH=4)
+    seg = one_hot(torch.tensor(seg.squeeze()).type(torch.int64), num_classes=4).permute(2, 0, 1)
+    # img = np.rot90(img.squeeze(), axes=(1, 0))
+    # seg = np.rot90(seg, axes=(2, 1))
+    plot_onehot_seg(img, seg=seg, alpha_overlay=0.2)
+
+    print(np.unique(seg))
