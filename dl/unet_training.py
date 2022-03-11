@@ -170,39 +170,10 @@ def calc_metric_avgs(metrics_frame, metrics_name):
     return pd.DataFrame(avgs, index=row_idxs)
 
 
-def load_unet(filename, channels=2, levels=4):
-    saved_unet = Unet(output_ch=channels, levels=levels)
+def load_unet(filename, out_channels=2, levels=4):
+    saved_unet = Unet(output_ch=out_channels, levels=levels)
     saved_unet.load_state_dict(torch.load(filename))
     return saved_unet.cuda()
-
-
-def check_predictions(unet, val_loader, loss):
-    unet.eval()
-    with torch.no_grad():
-        for i in range(2):
-            img, seg = next(iter(val_loader))
-            seg = seg[i]
-            img = img[i:i + 1]
-            # img = img.unsqueeze(dim=0)
-            prediction = unet(img)
-
-            loss_score = loss(prediction, seg).item()
-            print(f"Loss: {loss_score:.3f}")
-            prediction = torch.softmax(prediction, dim=1)
-            prediction = (prediction > 0.5).float().squeeze(dim=0)
-            dl.metrics.print_metrics(prediction, seg)
-            prediction = prediction.cpu().detach().numpy()
-            img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
-            seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
-            # utils.plot_onehot_seg(img, seg, title='Ground Truth')
-            # utils.plot_onehot_seg(img, prediction, title='Prediction')
-            utils.plot_onehot_seg(img, prediction, outline=seg)
-            '''
-            green: overlap
-            orange: missed
-            red: segmented background
-            '''
-            # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
 def train_unet(unet, foldername, train_settings, dataloader_settings):
@@ -235,12 +206,13 @@ def train_unet(unet, foldername, train_settings, dataloader_settings):
 if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
-    levels = 4
+    levels = 5
     top_features = 64
-    unet = Unet(output_ch=4, levels=levels, top_feature_ch=top_features).cuda()
+    out_ch = 4
+    unet = Unet(output_ch=out_ch, levels=levels, top_feature_ch=top_features).cuda()
 
     train_settings = {
-        "epochs": 60,
+        "epochs": 80,
         "do_val": True,
         "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.01, 1, 1, 1], device='cuda:0'),
                                            f1_weight=0.7),
@@ -284,7 +256,7 @@ if __name__ == '__main__':
         - change aug params
         - store scores for each patient
         - test augmentation
-        - add more augmentation threads?
         - skip splits
         - move eval to different file
+        - properly serialize settings
     '''

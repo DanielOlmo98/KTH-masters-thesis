@@ -70,21 +70,22 @@ class MySubset(Dataset):
     and the segmentations label encoded. The subset will convert the data to pytorch tensors, one-hot encode the
     labels and change the intensity range of the image form 0 to 1.
 
-    A copy of the subset of the parent dataset indicated by the indices will be transformed. If the queue is enabled,
-    when an element is requested and returned it will be put in a queue to be substituted by a new augmentation of
-    the element. The elements in the queue will be augmented in parallel in another thread.
+    A subset of the parent dataset indicated by the indices will be transformed. If there are any augmentation
+    threads enabled, when an element is requested and returned its index will be put in a queue so that the element
+    is augmented again. The elements in the queues will be augmented in parallel in another thread.
 
-    To wait for the queue to finish augmenting use the 'join()' method in self.q
+    To wait for the queues to finish augmenting use the 'join()'.
     """
 
     # todo update this documentation
-    def __init__(self, dataset, indices, transformer=None, n_aug_threads=1):
+    def __init__(self, dataset, indices, transformer=None, n_aug_threads=0):
         """
         :param dataset: Dataset that returns images and segmentations as numpy arrays. Image intensity must be in the
                         range 0-255. Segmentations must be label encoded.
         :param indices: List of indices of the parent dataset that will form the subset
-        :param augment_queue: Bool whether to queue returned elements for re-augmentation.
-        :param transformer: List of transforms to apply both in the full subset augmentation and the queue if enabled.
+        :param transformer: List of transforms to apply both in the full subset augmentation and the queue if
+                            enabled. If None the augmentation queue is disabled.
+        :param n_aug_threads: Number of threads to use for augmentation.
         """
         self.dataset = dataset
         self.indices = indices
@@ -199,6 +200,22 @@ class KFoldLoaders:
         gc.collect()
         torch.cuda.empty_cache()
         return train_loader, val_loader
+
+
+class KFoldValLoaders:
+    """
+    For validating kfold trained checkpoint
+    """
+    def __init__(self, dataset, split):
+        self.dataset = dataset
+        self.kf = KFold(n_splits=split).split(self.dataset)
+
+    def __len__(self):
+        return len(self.kf)
+
+    def __getitem__(self, item: int):
+        val_data = MySubset(self.dataset, indices=self.kf[item], transformer=None)
+        return DataLoader(val_data, batch_size=1, shuffle=True)
 
 
 def get_loaders(batch_size, dataset, train_indices, val_indices):

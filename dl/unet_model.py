@@ -81,6 +81,7 @@ class Unet(nn.Module):
 
     def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4):
         super(Unet, self).__init__()
+        self.out_ch = output_ch
         self.channels = torch.logspace(np.log2(top_feature_ch), np.log2(top_feature_ch) + levels - 1, levels, 2,
                                        dtype=torch.int)
 
@@ -89,11 +90,14 @@ class Unet(nn.Module):
         self.contracting_path = ContractingPath(input_ch, self.channels, self.pooling_layer)
         self.expanding_path = ExpandingPath(self.channels[:-1])
 
-        self.end = nn.Conv2d(self.channels[0], output_ch, kernel_size=(1, 1), padding='same')
+        self.end = nn.Conv2d(self.channels[0], self.out_ch, kernel_size=(1, 1), padding='same')
 
     def __str__(self):
-        return f'Unet:\n    Levels: {self.channels.size()[0]}\n    Features per level: {self.channels}\n    ' \
-               f'Pooling layer: {self.pooling_layer}'
+        return f'Unet:\n    ' \
+               f'Levels: {self.channels.size()[0]}\n    ' \
+               f'Features per level: {self.channels}\n    ' \
+               f'Pooling layer: {self.pooling_layer}\n    ' \
+               f'Output channels: {self.out_ch}'
 
     def forward(self, x):
         features = self.contracting_path(x)
