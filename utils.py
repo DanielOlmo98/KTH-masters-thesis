@@ -201,6 +201,14 @@ def plot_losses(train_losses, val_losses, show=True, filename=None, title='Losse
         plt.show()
 
 
+def call_json_serializer(obj):
+    if hasattr(obj, 'to_json'):
+        return obj.to_json()
+    elif hasattr(obj, '__str__'):
+        return str(obj)
+    raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
+
+
 if __name__ == '__main__':
     from torch.nn.functional import one_hot
     import torch

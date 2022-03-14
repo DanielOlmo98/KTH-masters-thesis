@@ -57,6 +57,9 @@ class CamusDatasetPNG(Dataset):
     def __str__(self):
         return f'{type(self)}\n    n_images: {len(self)}'
 
+    def to_json(self):
+        return {'n_images': len(self)}
+
 
 class MySubset(Dataset):
     """

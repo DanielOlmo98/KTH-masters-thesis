@@ -2,6 +2,7 @@ import gc
 import os
 
 import torch
+import json
 from tqdm import tqdm
 import dl.metrics
 import utils
@@ -154,7 +155,7 @@ def save_metrics(savename, val_metrics_ES_and_ED):
         m_frames.append(pd.concat([metrics_frame, avgs]))
 
     metrics_frame_full = pd.concat(m_frames, keys=list(val_metrics_ES_and_ED.keys()), axis=1)
-    metrics_frame_full.to_csv(f'{savename}metrics.csv')
+    metrics_frame_full.to_csv(f'{savename}val_metrics.csv')
     return metrics_frame_full
 
 
@@ -176,13 +177,16 @@ def load_unet(filename, out_channels=2, levels=4, top_ch=32):
     return saved_unet.cuda()
 
 
-def train_unet(unet, foldername, train_settings, dataloader_settings):
+def train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
     val_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
 
     # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,use_cuda=True) as prof:
     #     train_unet(unet, **train_settings)
     # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-
+    if dataloader_settings['augments'] is True:
+        dataloader_settings['augments'] = get_transforms(**aug_settings)
+    else:
+        dataloader_settings['augments'] = None
     kf_loader = KFoldLoaders(**dataloader_settings)
     for fold, (train_loader, val_loader) in enumerate(kf_loader):
         print(f'Fold #{fold}')
@@ -206,10 +210,12 @@ def train_unet(unet, foldername, train_settings, dataloader_settings):
 if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
-    levels = 5
-    top_features = 64
-    out_ch = 4
-    unet = Unet(output_ch=out_ch, levels=levels, top_feature_ch=top_features).cuda()
+    unet_settings = {
+        'levels': 5,
+        'top_feature_ch': 64,
+        'output_ch': 4
+    }
+    unet = Unet(**unet_settings).cuda()
 
     train_settings = {
         "epochs": 80,
@@ -233,24 +239,29 @@ if __name__ == '__main__':
         "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(),
-        # "augments": get_transforms(**aug_settings),
-        "augments": None,
+        "augments": True,
         "n_train_aug_threads": 2,
     }
 
-    foldername = f"train_results/unet_{levels}levels_augment_{dataloader_settings['augments'] is not None}" \
-                 f"_{top_features}top/ "
+    settings = {'unet_settings': unet_settings,
+                'train_settings': train_settings,
+                'aug_settings': aug_settings,
+                'dataloader_settings': dataloader_settings,
+                }
+
+    foldername = f"train_results/unet_{unet_settings['levels']}" \
+                 f"levels_augment_{dataloader_settings['augments']}" \
+                 f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
     print(f'Feature maps: {unet.channels}')
     os.makedirs(foldername, exist_ok=True)
-    with open(f'{foldername}settings.txt', 'w') as file:
-        for dict in [dataloader_settings, aug_settings, train_settings]:
-            for key, value in dict.items():
-                file.write(f'{key}: {value}\n')
-        file.write(f'{unet}')
+    with open(f'{foldername}settings.json', 'w') as file:
+        # for key, value in dict.items():
+        #     file.write(f'{key}: {value}\n')
+        json.dump(settings, file, indent=2, default=utils.call_json_serializer)
 
-    train_unet(unet, foldername, train_settings, dataloader_settings)
+    train_unet(unet, foldername, **settings)
 
     ''' TODO
         - change aug params

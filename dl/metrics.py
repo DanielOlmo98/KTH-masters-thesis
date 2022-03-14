@@ -67,6 +67,11 @@ class FscoreLoss(nn.Module):
     def __str__(self):
         return f'{type(self)}:\n    Class weights: {self.class_weights}\n    F weight: {self.f1_weight}'
 
+    def to_json(self):
+        return {'class_weights': self.class_weights.tolist(),
+                'num_classes': self.num_classes,
+                'f1_weight': self.f1_weight}
+
     def forward(self, input, target):
         score = torch.zeros(1, device="cuda:0")
         softmax = nn.Softmax(dim=1)
