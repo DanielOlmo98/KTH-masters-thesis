@@ -206,15 +206,16 @@ class KFoldValLoaders:
     """
     For validating kfold trained checkpoint
     """
+
     def __init__(self, dataset, split):
         self.dataset = dataset
-        self.kf = KFold(n_splits=split).split(self.dataset)
+        self.kf = list(KFold(n_splits=split).split(self.dataset))
 
     def __len__(self):
         return len(self.kf)
 
     def __getitem__(self, item: int):
-        val_data = MySubset(self.dataset, indices=self.kf[item], transformer=None)
+        val_data = MySubset(self.dataset, indices=self.kf[item][1], transformer=None)
         return DataLoader(val_data, batch_size=1, shuffle=True)
 
 

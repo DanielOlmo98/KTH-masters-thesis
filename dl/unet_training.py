@@ -170,8 +170,8 @@ def calc_metric_avgs(metrics_frame, metrics_name):
     return pd.DataFrame(avgs, index=row_idxs)
 
 
-def load_unet(filename, out_channels=2, levels=4):
-    saved_unet = Unet(output_ch=out_channels, levels=levels)
+def load_unet(filename, out_channels=2, levels=4, top_ch=32):
+    saved_unet = Unet(output_ch=out_channels, levels=levels, top_feature_ch=top_ch)
     saved_unet.load_state_dict(torch.load(filename))
     return saved_unet.cuda()
 

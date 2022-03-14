@@ -9,10 +9,10 @@ from unet_training import load_unet
 def check_predictions(unet, val_loader):
     unet.eval()
     with torch.no_grad():
-        for i in range(2):
-            img, seg = next(iter(val_loader))
-            seg = seg[i]
-            img = img[i:i + 1]
+        for data in iter(val_loader):
+            img, seg, _ = data
+            seg = seg[0]
+            # img = img[0]
             # img = img.unsqueeze(dim=0)
             prediction = unet(img)
 
@@ -48,11 +48,15 @@ def val_folds(net_name):
     val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=len(checkpoint_path_list))
     for i, checkpoint_path in enumerate(checkpoint_path_list):
         val_loader = val_loaders[i]
-        unet = load_unet(checkpoint_path, out_channels=4, levels=0)
+        unet = load_unet(checkpoint_path, out_channels=4, levels=levels, top_ch=top_ch)
         check_predictions(unet, val_loader)
         dl.unet_training.evaluate_unet(unet, val_loader, val_metrics)
         dl.unet_training.save_metrics(f'{path}test_', val_metrics)
 
 
 if __name__ == '__main__':
+    path = 'train_results/unet_4levels_augment_False_64top/ fold_0.pt'
+    unet = load_unet(path, out_channels=4, levels=4, top_ch=64)
+    val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
+    check_predictions(unet, val_loaders[0])
     print()
