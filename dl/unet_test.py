@@ -7,14 +7,12 @@ import os
 from unet_training import load_unet, evaluate_unet, save_metrics
 
 
-def check_predictions(unet, val_loader):
+def check_predictions(unet, val_loader, n_images):
     unet.eval()
     with torch.no_grad():
-        for data in iter(val_loader):
+        for i, data in enumerate(val_loader):
             img, seg, _ = data
             seg = seg[0]
-            # img = img[0]
-            # img = img.unsqueeze(dim=0)
             prediction = unet(img)
 
             prediction = torch.softmax(prediction, dim=1)
@@ -26,11 +24,13 @@ def check_predictions(unet, val_loader):
             # utils.plot_onehot_seg(img, seg, title='Ground Truth')
             # utils.plot_onehot_seg(img, prediction, title='Prediction')
             utils.plot_onehot_seg(img, prediction, outline=seg)
-            '''q
+            ''' Legend:
             green: overlap
             orange: missed
             red: segmented background
             '''
+            if i + 1 == n_images:
+                return
             # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
@@ -65,14 +65,14 @@ def eval_test_set(unet, net_name):
     subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
     test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)
     evaluate_unet(unet, test_loader, test_metrics)
-    save_metrics(f'train_results/net_name/test_', test_metrics)
+    save_metrics(f'train_results/{net_name}/test_', test_metrics)
 
 
 if __name__ == '__main__':
-    path = 'train_results/unet_4levels_augment_False_64top/ fold_0.pt'
-    # unet = load_unet(path, out_channels=4, levels=4, top_ch=64)
-    # val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
-    # check_predictions(unet, val_loaders[0])
-    val_folds('unet_5levels_augment_False_64top')
+    path = 'train_results/unet_4levels_augment_False_16top/fold_0.pt'
+    unet = load_unet(path, out_channels=4, levels=4, top_ch=64)
+    val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
+    check_predictions(unet, val_loaders[0], n_images=1)
+    # val_folds('unet_5levels_augment_False_64top')
     print()
     # eval_test_set(unet)

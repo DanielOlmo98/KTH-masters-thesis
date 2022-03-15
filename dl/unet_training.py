@@ -180,9 +180,6 @@ def load_unet(filename, out_channels=2, levels=4, top_ch=32):
 def train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
     val_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
 
-    # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True,use_cuda=True) as prof:
-    #     train_unet(unet, **train_settings)
-    # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
     if dataloader_settings['augments'] is True:
         dataloader_settings['augments'] = get_transforms(**aug_settings)
     else:
@@ -204,21 +201,20 @@ def train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
     print(metrics_frame.xs('avg').xs('ED', axis=1))
     print('\nES')
     print(metrics_frame.xs('avg').xs('ES', axis=1))
-    # check_predictions(load_unet(filename, channels=n_ch, levels=levels), val_loader, loss_func)
 
 
 if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 5,
-        'top_feature_ch': 64,
+        'levels': 4,
+        'top_feature_ch': 16,
         'output_ch': 4
     }
     unet = Unet(**unet_settings).cuda()
 
     train_settings = {
-        "epochs": 80,
+        "epochs": 100,
         "do_val": True,
         "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.01, 1, 1, 1], device='cuda:0'),
                                            f1_weight=0.7),
@@ -239,7 +235,7 @@ if __name__ == '__main__':
         "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(),
-        "augments": True,
+        "augments": False,
         "n_train_aug_threads": 2,
     }
 
@@ -257,17 +253,12 @@ if __name__ == '__main__':
     print(f'Feature maps: {unet.channels}')
     os.makedirs(foldername, exist_ok=True)
     with open(f'{foldername}settings.json', 'w') as file:
-        # for key, value in dict.items():
-        #     file.write(f'{key}: {value}\n')
         json.dump(settings, file, indent=2, default=utils.call_json_serializer)
 
     train_unet(unet, foldername, **settings)
 
     ''' TODO
         - change aug params
-        - store scores for each patient
         - test augmentation
         - skip splits
-        - move eval to different file
-        - properly serialize settings
     '''

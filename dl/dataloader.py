@@ -207,7 +207,8 @@ class KFoldLoaders:
 
 class KFoldValLoaders:
     """
-    For validating kfold trained checkpoint
+    Indexable class that has validation dataloaders, used with kfold checkpoints to calculate validation metrics for
+    each fold.
     """
 
     def __init__(self, dataset, split):
@@ -307,15 +308,9 @@ class CamusDataset(Dataset):
         img = img.astype(dtype=np.float32)
 
         augmented = self.transform(image=img[0], mask=seg[0])
-
-        # seg = torch.from_numpy(seg.squeeze().astype(dtype=np.int64)).to('cuda')
         img = augmented['image']
         seg = one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1)
         del augmented
-        # seg = seg.type(torch.float32)
-        # img = self.transform(img)
-        # seg = self.transform(seg)
-        # seg = (seg > 0.5).float()
 
         if self.binary:
             seg = seg[0:2]
