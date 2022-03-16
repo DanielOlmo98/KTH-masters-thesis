@@ -177,7 +177,10 @@ def load_unet(filename, out_channels=2, levels=4, top_ch=32):
     return saved_unet.cuda()
 
 
-def train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
+def kfold_train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
+    """
+    Train unet and calculate metrics in k-folds. kwargs are ignored.
+    """
     val_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
 
     if dataloader_settings['augments'] is True:
@@ -203,11 +206,23 @@ def train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
     print(metrics_frame.xs('avg').xs('ES', axis=1))
 
 
+def full_train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
+    val_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
+
+    if dataloader_settings['augments'] is True:
+        dataloader_settings['augments'] = get_transforms(**aug_settings)
+    else:
+        dataloader_settings['augments'] = None
+
+    # train_loader =
+
+
+
 if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 4,
+        'levels': 5,
         'top_feature_ch': 16,
         'output_ch': 4
     }
@@ -231,10 +246,11 @@ if __name__ == '__main__':
 
     }
 
+    dataset = "camus_png"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
-        "dataset": CamusDatasetPNG(),
+        "dataset": CamusDatasetPNG(dataset=dataset),
         "augments": False,
         "n_train_aug_threads": 2,
     }
@@ -245,7 +261,7 @@ if __name__ == '__main__':
                 'dataloader_settings': dataloader_settings,
                 }
 
-    foldername = f"train_results/unet_{unet_settings['levels']}" \
+    foldername = f"train_results/{dataset}/unet_{unet_settings['levels']}" \
                  f"levels_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
@@ -255,7 +271,7 @@ if __name__ == '__main__':
     with open(f'{foldername}settings.json', 'w') as file:
         json.dump(settings, file, indent=2, default=utils.call_json_serializer)
 
-    train_unet(unet, foldername, **settings)
+    kfold_train_unet(unet, foldername, **settings)
 
     ''' TODO
         - change aug params

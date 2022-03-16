@@ -60,7 +60,7 @@ def val_folds(net_name):
 
 
 def eval_test_set(unet, net_name):
-    test_set = CamusDatasetPNG(path='/dataset/camus_png_test/')
+    test_set = CamusDatasetPNG(dataset='camus_png_test')
     test_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
     subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
     test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)

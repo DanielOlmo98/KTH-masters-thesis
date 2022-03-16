@@ -24,8 +24,9 @@ class CamusDatasetPNG(Dataset):
     Loads the dataset into CPU memory. It also keeps track if an images is end systole (ES) or end diastole (ED).
     """
 
-    def __init__(self, path="/dataset/camus_png/"):
-        self.imgs, self.segs, self.ED_or_ES = self._load_np(path)
+    def __init__(self, dataset="camus_png"):
+        self.path = f'/dataset/{dataset}/'
+        self.imgs, self.segs, self.ED_or_ES = self._load_np(self.path)
 
     def __len__(self):
         return len(self.imgs)
@@ -58,7 +59,8 @@ class CamusDatasetPNG(Dataset):
         return f'{type(self)}\n    n_images: {len(self)}'
 
     def to_json(self):
-        return {'n_images': len(self)}
+        return {'n_images': len(self),
+                'path': self.path}
 
 
 class MySubset(Dataset):
@@ -337,30 +339,6 @@ def get_image_paths(data_path, extension=".mhd"):
         img_paths.extend(img_path)
 
     return img_paths, gt_paths
-
-
-def dataset_convert(folder_save_name, img_preprocess_func=None):
-    """
-    Resizes and saves the dataset into PNG format with optional additional transformation with a function.
-    """
-    resize = A.Resize(256, 256)
-    dataset_path = utils.get_project_root() + '/dataset/' + 'training/'
-    converted_path = utils.get_project_root() + '/dataset/' + folder_save_name + '/'
-
-    img_paths, seg_paths = get_image_paths(dataset_path)
-
-    folders = os.listdir(dataset_path)
-    for folder in folders:
-        os.makedirs(converted_path + folder)
-
-    for img_path, seg_path in zip(img_paths, seg_paths):
-        data = resize(image=imread(img_path)[0], mask=imread(seg_path)[0])
-        image = data['image']
-        mask = data['mask']
-        if img_preprocess_func is not None:
-            img, mask = img_preprocess_func(image, mask)
-        imsave(converted_path + img_path[31:-3] + 'png', image)
-        imsave(converted_path + seg_path[31:-3] + 'png', mask)
 
 
 def timetest():
