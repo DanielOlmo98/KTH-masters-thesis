@@ -223,7 +223,7 @@ if __name__ == '__main__':
 
     unet_settings = {
         'levels': 5,
-        'top_feature_ch': 16,
+        'top_feature_ch': 32,
         'output_ch': 4
     }
     unet = Unet(**unet_settings).cuda()
@@ -251,8 +251,8 @@ if __name__ == '__main__':
         "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
-        "augments": False,
-        "n_train_aug_threads": 2,
+        "augments": True,
+        "n_train_aug_threads": 4,
     }
 
     settings = {'unet_settings': unet_settings,

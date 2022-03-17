@@ -158,8 +158,8 @@ class MySubset(Dataset):
             self.aug_segs[idx] = (
                 one_hot(augmented['mask'].type(torch.int64), num_classes=4).permute(2, 0, 1).to('cuda'))
             q.task_done()
-            if q.qsize() % 100 == 0:
-                print(f'Augmenting {q.qsize()} images...')
+            # if q.qsize() % 100 == 0:
+            #     print(f'Augmenting {q.qsize()} images...')
             gc.collect()
             torch.cuda.empty_cache()
 
