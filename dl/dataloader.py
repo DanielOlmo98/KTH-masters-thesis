@@ -206,6 +206,9 @@ class KFoldLoaders:
         torch.cuda.empty_cache()
         return train_loader, val_loader
 
+    def skip_fold(self):
+        _, _ = next(self.kf)
+
 
 class KFoldValLoaders:
     """
@@ -225,6 +228,38 @@ class KFoldValLoaders:
         return DataLoader(val_data, batch_size=1, shuffle=True)
 
 
+def get_full_dataset_loader(batch_size, dataset, transformer, n_aug_threads, **kwargs):
+    """
+    :param batch_size: Batch size of the training loader.
+    :param dataset: Dataset to create loaders for.
+    :param transformer: List of transforms to apply both in the full subset augmentation and the queue if
+                        enabled. If None the augmentation queue is disabled.
+    :param n_aug_threads: Number of threads to use for augmentation.
+    :param kwargs: Ignore kwargs for compatibility with dict settings.
+    :return:
+    """
+    train_data = MySubset(dataset, indices=list(range(len(dataset))), transformer=transformer,
+                          n_aug_threads=n_aug_threads)
+
+    return DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
+
+
+def get_transforms(h_flip_p, elastic_alpha, elastic_sigma, elastic_affine, bright_lim, contrast_lim):
+    """
+    Get array of transforms used for data augmentation, including a numpy to tensor conversion.
+    :return: Array of transforms.
+    """
+    return [
+        # A.Normalize(max_pixel_value=1.0),
+        A.HorizontalFlip(p=h_flip_p),
+        A.ElasticTransform(p=1, alpha=elastic_alpha, sigma=elastic_sigma, alpha_affine=elastic_affine, border_mode=0),
+        A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=bright_lim,
+                                   contrast_limit=contrast_lim),
+        A.pytorch.ToTensorV2(),
+
+    ]
+
+
 def get_loaders(batch_size, dataset, train_indices, val_indices):
     """
     Splits the dataset into train and validation subsets given indices, then creates loaders for each of them.
@@ -242,22 +277,6 @@ def get_loaders(batch_size, dataset, train_indices, val_indices):
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_data, batch_size=2, shuffle=True, num_workers=0)
     return train_loader, val_loader
-
-
-def get_transforms(h_flip_p, elastic_alpha, elastic_sigma, elastic_affine, bright_lim, contrast_lim):
-    """
-    Get array of transforms used for data augmentation, including a numpy to tensor conversion.
-    :return: Array of transforms.
-    """
-    return [
-        # A.Normalize(max_pixel_value=1.0),
-        A.HorizontalFlip(p=h_flip_p),
-        A.ElasticTransform(p=1, alpha=elastic_alpha, sigma=elastic_sigma, alpha_affine=elastic_affine, border_mode=0),
-        A.RandomBrightnessContrast(p=1., brightness_by_max=False, brightness_limit=bright_lim,
-                                   contrast_limit=contrast_lim),
-        A.pytorch.ToTensorV2(),
-
-    ]
 
 
 class DataAugmentation(nn.Module):

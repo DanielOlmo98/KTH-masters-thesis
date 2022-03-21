@@ -125,10 +125,10 @@ def heightmap(array, ax=None, title=None, elev=None, azim=None):
         return ax
 
 
-def load_patient(patient='0001', CH=2, ED_or_ES='ED', png=False, rotate=False):
+def load_patient(patient='0001', CH=2, ED_or_ES='ED', png=False, rotate=False, dataset_path='camus_png'):
     from medpy.io.load import load
     if png:
-        dataset_path = 'camus_png'
+        dataset_path = dataset_path
         filetype = '.png'
     else:
         dataset_path = 'training'
@@ -150,6 +150,11 @@ def load_patient(patient='0001', CH=2, ED_or_ES='ED', png=False, rotate=False):
             img = np.rot90(img, axes=(1, 0))
             seg = np.rot90(seg, axes=(1, 0))
         return img, img_header, seg, seg_header
+
+
+def get_example_img():
+    img, _ = load_patient(png=True)
+    return img
 
 
 def slice_view_3d(volume):

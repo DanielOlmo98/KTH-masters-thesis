@@ -170,6 +170,9 @@ if __name__ == '__main__':
     image = cv2.copyMakeBorder(
         image, ground_truth.shape[0] - image.shape[0], 0, 0, 0, borderType=cv2.BORDER_CONSTANT, value=0)
 
+    utils.plot_image_g( # add gamma multiplicative noise
+        image * np.repeat(np.repeat(np.random.gamma(100, scale=1, size=[128, 128]), 2, axis=0), 2, axis=1))
+
     # wavelet_plot(image)
     utils.plot_image_g(image, title='Noised', overlay_img=segmentation)
     # utils.plot_image_g(ground_truth, title='Original', overlay_img=segmentation)

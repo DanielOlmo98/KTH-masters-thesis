@@ -10,7 +10,7 @@ from unet_model import Unet
 import pandas as pd
 from torch.utils.data import DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
-from dl.dataloader import CamusDatasetPNG, KFoldLoaders, get_transforms
+from dl.dataloader import CamusDatasetPNG, KFoldLoaders, get_transforms, get_full_dataset_loader
 from colorama import Fore, Style
 import torch.optim as optim
 import numpy as np
@@ -18,7 +18,7 @@ from torch.profiler import profile, record_function, ProfilerActivity
 from pynvml.smi import nvidia_smi
 
 
-def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, optimizer, loss_func, do_val=True):
+def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, optimizer, loss_func, **kwargs):
     bar = Fore.WHITE + '{l_bar}{bar}' + Fore.WHITE + '| {n_fmt}/{total_fmt} [{elapsed}{postfix}]'
     bar_val = Fore.GREEN + '{l_bar}{bar}' + Fore.GREEN + '| {n_fmt}/{total_fmt} [{elapsed}  {postfix}]'
     val_min_loss = 9
@@ -33,29 +33,34 @@ def train_loop(unet, train_loader, val_loader, savename, val_metrics, epochs, op
                           bar_format=bar, leave=True, position=0)
         train_loss_epoch = train(optimizer, loss_func, train_loop, unet)
         del train_loop
+        if val_loader is not None:
+            val_loop = tqdm(val_loader, colour='green', desc=f'               validating', bar_format=bar_val,
+                            leave=True,
+                            position=0)
+            val_loss_epoch = val(loss_func, val_loop, unet)
+            del val_loop
 
-        val_loop = tqdm(val_loader, colour='green', desc=f'               validating', bar_format=bar_val,
-                        leave=True,
-                        position=0)
-        val_loss_epoch = val(loss_func, val_loop, unet)
-        del val_loop
+            val_loss_list.append(val_loss_epoch)
+        else:
+            val_loss_epoch = train_loss_epoch
 
-        gc.collect()
-        torch.cuda.empty_cache()
         if val_loss_epoch < val_min_loss:
             torch.save(unet.state_dict(), f'{savename}.pt')
             print("\nModel Saved")
             val_min_loss = val_loss_epoch
 
+        gc.collect()
+        torch.cuda.empty_cache()
+
         train_loss_list.append(train_loss_epoch)
-        val_loss_list.append(val_loss_epoch)
 
         # Wait for augmentation queues to finish if there are any
         if train_loader.dataset.n_aug_threads > 0:
             train_loader.dataset.join_queues()
 
     utils.plot_losses(train_loss_list, val_loss_list, filename=f'{savename}_loss.png')
-    evaluate_unet(unet, val_loader, val_metrics)
+    if val_loader is not None:
+        evaluate_unet(unet, val_loader, val_metrics)
 
 
 def train(optimizer, loss_func, train_loop, unet):
@@ -64,6 +69,9 @@ def train(optimizer, loss_func, train_loop, unet):
     unet.train()
     for _, data in enumerate(train_loop):
         img, gt, _ = data
+        # input_names = ['img']
+        # output_names = ['seg']
+        # torch.onnx.export(unet, img, 'unet.onnx', input_names=input_names, output_names=output_names)
         optimizer.zero_grad()
         del data
         with torch.cuda.amp.autocast():
@@ -188,9 +196,21 @@ def kfold_train_unet(unet, foldername, train_settings, dataloader_settings, **kw
     else:
         dataloader_settings['augments'] = None
     kf_loader = KFoldLoaders(**dataloader_settings)
+
+    fold_count = 0
+
+    for i in range(dataloader_settings['split']):
+        if os.path.exists(f'{foldername}fold_{i}_loss.png'):
+            print(f'Skipping fold {i}')
+            fold_count = i + 1
+            kf_loader.skip_fold()
+
     for fold, (train_loader, val_loader) in enumerate(kf_loader):
+        fold += fold_count
+        path = f'{foldername}fold_{fold}'
         print(f'Fold #{fold}')
-        train_loop(unet, train_loader, val_loader, f'{foldername}fold_{fold}', val_metrics, **train_settings)
+
+        train_loop(unet, train_loader, val_loader, path, val_metrics, **train_settings)
         del train_loader.dataset.aug_imgs, train_loader.dataset.aug_segs
         del val_loader.dataset.aug_imgs, val_loader.dataset.aug_segs
         del train_loader, val_loader
@@ -214,8 +234,7 @@ def full_train_unet(unet, foldername, train_settings, dataloader_settings, **kwa
     else:
         dataloader_settings['augments'] = None
 
-    # train_loader =
-
+    train_loader = get_full_dataset_loader(**dataloader_settings)
 
 
 if __name__ == '__main__':
@@ -252,7 +271,7 @@ if __name__ == '__main__':
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
         "augments": True,
-        "n_train_aug_threads": 4,
+        "n_train_aug_threads": 2,
     }
 
     settings = {'unet_settings': unet_settings,
@@ -275,6 +294,6 @@ if __name__ == '__main__':
 
     ''' TODO
         - change aug params
-        - test augmentation
-        - skip splits
+        - put us sim img gt though coord transform
+        - plot CNN
     '''
