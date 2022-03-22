@@ -113,18 +113,38 @@ class Unet(nn.Module):
 
 
 import unittest
+from torchviz import make_dot
 
 
 class UnetTest(unittest.TestCase):
     def test(self):
-        x = torch.randn((3, 1, 161, 161))
-        model = Unet(input_ch=1, output_ch=1)
+        unet_settings = {
+            'levels': 5,
+            'top_feature_ch': 16,
+            'output_ch': 1
+        }
+        model = Unet(**unet_settings)
+        x = torch.randn((3, 1, 256, 256))
         preds = model(x)
         print(model)
         print(x.shape)
         print(preds.shape)
+
+        make_dot(preds, params=dict(model.named_parameters())).render("net5", format="png")
+
         assert preds.shape == x.shape
 
 
 if __name__ == '__main__':
     unittest.main()
+    # unet_settings = {
+    #     'levels': 3,
+    #     'top_feature_ch': 16,
+    #     'output_ch': 1
+    # }
+    # model = Unet(**unet_settings)
+    # x = torch.randn((4, 1, 256, 256)).type(torch.float32)
+    # y = model(x)
+    # input_names = ['img']
+    # output_names = ['seg']
+    # torch.onnx.export(model, x, 'unet.onnx', input_names=input_names, output_names=output_names)

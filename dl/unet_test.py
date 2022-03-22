@@ -4,7 +4,14 @@ import dl
 import json
 from dl.dataloader import KFoldValLoaders, CamusDatasetPNG
 import os
-from unet_training import load_unet, evaluate_unet, save_metrics
+from unet_model import Unet
+from unet_training import evaluate_unet, save_metrics
+
+
+def load_unet(filename, output_ch, levels, top_feature_ch):
+    saved_unet = Unet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
+    saved_unet.load_state_dict(torch.load(filename))
+    return saved_unet.cuda()
 
 
 def check_predictions(unet, val_loader, n_images):
@@ -52,7 +59,7 @@ def val_folds(net_name):
         unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
         # check_predictions(unet, val_loader)
         evaluate_unet(unet, val_loader, val_metrics)
-    eval_results = save_metrics(f'{path}test_', val_metrics)
+    eval_results = save_metrics(f'{path}val_', val_metrics)
     print('ED')
     print(eval_results.xs('avg').xs('ED', axis=1))
     print('\nES')
@@ -65,14 +72,14 @@ def eval_test_set(unet, net_name):
     subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
     test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)
     evaluate_unet(unet, test_loader, test_metrics)
-    save_metrics(f'train_results/{net_name}/test_', test_metrics)
+    save_metrics(f'train_results/camus_png/{net_name}/test_', test_metrics)
 
 
 if __name__ == '__main__':
-    path = 'train_results/unet_4levels_augment_False_16top/fold_0.pt'
-    unet = load_unet(path, out_channels=4, levels=4, top_ch=64)
-    val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
-    check_predictions(unet, val_loaders[0], n_images=1)
-    # val_folds('unet_5levels_augment_False_64top')
+    path = 'train_results/camus_png/unet_5levels_augment_False_16top/fold_0.pt'
+    # unet = load_unet(path, out_channels=4, levels=5, top_ch=64)
+    # val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
+    # check_predictions(unet, val_loaders[0], n_images=1)
+    val_folds('camus_png/unet_5levels_augment_False_16top')
     print()
     # eval_test_set(unet)

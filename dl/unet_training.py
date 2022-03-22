@@ -169,20 +169,18 @@ def save_metrics(savename, val_metrics_ES_and_ED):
 
 def calc_metric_avgs(metrics_frame, metrics_name):
     avgs = []
+    f1_std = []
     for metric in metrics_name:
         avgs.append(metrics_frame.xs(metric, level=1).mean())
+        if metric == 'f1':
+            f1_std.append(metrics_frame.xs(metric, level=1).std())
 
+    metrics_name.append('f1_std_dev')
     row_idxs = pd.MultiIndex.from_product(
         [['avg'], metrics_name],
         names=['fold', 'metric']
     )
-    return pd.DataFrame(avgs, index=row_idxs)
-
-
-def load_unet(filename, out_channels=2, levels=4, top_ch=32):
-    saved_unet = Unet(output_ch=out_channels, levels=levels, top_feature_ch=top_ch)
-    saved_unet.load_state_dict(torch.load(filename))
-    return saved_unet.cuda()
+    return pd.DataFrame([*avgs, *f1_std], index=row_idxs)
 
 
 def kfold_train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
@@ -296,4 +294,6 @@ if __name__ == '__main__':
         - change aug params
         - put us sim img gt though coord transform
         - plot CNN
+        - run 4 level 64 top and 5 level 64 top
+        - std
     '''
