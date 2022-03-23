@@ -295,5 +295,4 @@ if __name__ == '__main__':
         - put us sim img gt though coord transform
         - plot CNN
         - run 4 level 64 top and 5 level 64 top
-        - std
     '''
