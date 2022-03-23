@@ -54,7 +54,7 @@ def val_folds(net_name):
     checkpoint_path_list, settings = get_checkpoints_paths(path)
     val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=len(checkpoint_path_list))
     for i, checkpoint_path in enumerate(checkpoint_path_list):
-        print(i)
+        print(f'Evaluating fold {i}')
         val_loader = val_loaders[i]
         unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
         # check_predictions(unet, val_loader)
@@ -80,6 +80,6 @@ if __name__ == '__main__':
     # unet = load_unet(path, out_channels=4, levels=5, top_ch=64)
     # val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
     # check_predictions(unet, val_loaders[0], n_images=1)
-    val_folds('camus_png/unet_5levels_augment_False_16top')
+    val_folds('camus_png/unet_4levels_augment_False_16top')
     print()
     # eval_test_set(unet)
