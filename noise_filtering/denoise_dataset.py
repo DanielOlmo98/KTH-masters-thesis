@@ -21,13 +21,14 @@ def dataset_convert(folder_save_name, img_preprocess_func=None):
         os.makedirs(converted_path + folder)
 
     for img_path, seg_path in zip(img_paths, seg_paths):
-        data = resize(image=imread(img_path)[0], mask=imread(seg_path)[0])
-        image = data['image']
-        mask = data['mask']
+        image = imread(img_path)[0]
+        mask = imread(seg_path)[0]
         if img_preprocess_func is not None:
             image = img_preprocess_func(image / 255.)
-        imsave(converted_path + img_path[31:-3] + 'png', image)
-        imsave(converted_path + seg_path[31:-3] + 'png', mask)
+
+        data = resize(image=image, mask=mask)
+        imsave(converted_path + img_path[31:-3] + 'png', data['image'])
+        imsave(converted_path + seg_path[31:-3] + 'png', data['mask'])
 
 
 def convert_test(img_preprocess_func):
