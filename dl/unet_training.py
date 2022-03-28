@@ -141,13 +141,14 @@ def full_train_unet(unet, foldername, train_settings, dataloader_settings, **kwa
         dataloader_settings['augments'] = None
 
     train_loader = get_full_dataset_loader(**dataloader_settings)
+    train_loop(unet, train_loader, val_loader=None, savename=f'{foldername}full_dataset', **train_settings)
 
 
 if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 5,
+        'levels': 4,
         'top_feature_ch': 64,
         'output_ch': 4
     }
@@ -199,11 +200,11 @@ if __name__ == '__main__':
     kfold_train_unet(unet, foldername, **settings)
 
     ''' TODO
-        - change aug params
         - put us sim img gt though coord transform
         - run 4 level 64 top and 5 level 64 top
         - denoise and then noise
-        - avg LA and stddev
+        - blurr denoise?
         - run val on all
         - train with different weights?
+        - speckle eval
     '''
