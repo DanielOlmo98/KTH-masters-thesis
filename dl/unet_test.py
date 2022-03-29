@@ -1,6 +1,7 @@
 import torch
 import utils
 import dl
+import dl.metrics
 import json
 from dl.dataloader import KFoldValLoaders, CamusDatasetPNG
 import os
@@ -136,16 +137,13 @@ def val_folds(net_name):
     checkpoint_path_list, settings = get_checkpoints_paths(path)
     val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=len(checkpoint_path_list))
     for i, checkpoint_path in enumerate(checkpoint_path_list):
-        print(f'Evaluating fold {i}')
+        # print(f'Evaluating fold {i}')
         val_loader = val_loaders[i]
         unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
         # check_predictions(unet, val_loader)
         evaluate_unet(unet, val_loader, val_metrics)
     eval_results = save_metrics(f'{path}val_', val_metrics)
-    print('ED')
-    print(eval_results.xs('avg').xs('ED', axis=1))
-    print('\nES')
-    print(eval_results.xs('avg').xs('ES', axis=1))
+    return eval_results
 
 
 def eval_test_set(unet, net_name):
@@ -162,7 +160,12 @@ if __name__ == '__main__':
     # unet = load_unet(path, out_channels=4, levels=5, top_ch=64)
     # val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
     # check_predictions(unet, val_loaders[0], n_images=1)
-    for net_folder in os.listdir('camus_png'):
-        val_folds(f'camus_png/{net_folder}')
-    print()
+    for net_folder in os.listdir('train_results/camus_png'):
+        print(f'\n\n\n{net_folder}')
+        eval_results = val_folds(f'camus_png/{net_folder}')
+        with pd.option_context('precision', 3):
+            print('ED')
+            print(eval_results.xs('avg').xs('ED', axis=1))
+            print('\nES')
+            print(eval_results.xs('avg').xs('ES', axis=1))
     # eval_test_set(unet)

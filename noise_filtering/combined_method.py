@@ -19,7 +19,7 @@ def csrad(image, steps, step_size):
     ci = np.zeros_like(image)
     for n in range(steps):
         image_n = np.abs(image_n)
-        image_n, ci, di = cy_csrad(array=image_n.clip(1e-7), ci_1=ci.clip(1e-7), iter=n, step=step_size)
+        image_n, ci, di = cy_csrad(array=image_n.clip(1e-8), ci_1=ci.clip(1e-8), iter=n, step=step_size)
         ci = np.asarray(ci.base)
 
     return image_n

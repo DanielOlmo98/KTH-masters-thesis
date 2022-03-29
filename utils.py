@@ -18,7 +18,7 @@ def binarize(img, threshold=0.5):
 
 
 def normalize_0_1(img):
-    return (img - np.min(img)) / (np.max(img) - np.min(img) + 1e-6)
+    return (img - np.min(img)) / (np.max(img) - np.min(img)).clip(1e-8)
 
 
 def normalize_neg1_to_1(img):

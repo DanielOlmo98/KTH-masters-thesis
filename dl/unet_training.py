@@ -148,7 +148,7 @@ if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 4,
+        'levels': 5,
         'top_feature_ch': 64,
         'output_ch': 4
     }
@@ -177,7 +177,7 @@ if __name__ == '__main__':
         "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
-        "augments": False,
+        "augments": True,
         "n_train_aug_threads": 2,
     }
 
@@ -201,10 +201,10 @@ if __name__ == '__main__':
 
     ''' TODO
         - put us sim img gt though coord transform
-        - run 4 level 64 top and 5 level 64 top
         - denoise and then noise
         - blurr denoise?
         - run val on all
         - train with different weights?
         - speckle eval
+        - 5 lvel 64 augm
     '''
