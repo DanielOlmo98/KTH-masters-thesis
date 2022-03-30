@@ -19,17 +19,21 @@ def dataset_convert(folder_save_name, img_preprocess_func=None):
 
     folders = os.listdir(dataset_path)
     for folder in folders:
-        os.makedirs(converted_path + folder)
+        os.makedirs(converted_path + folder, exist_ok=True)
 
     for img_path, seg_path in zip(img_paths, seg_paths):
+        img_savename = f'{converted_path}{img_path[31:-3]}png'
+        seg_savename = f'{converted_path}{seg_path[31:-3]}png'
+        if os.path.exists(img_savename) and os.path.exists(seg_savename):
+            continue
         image = imread(img_path)[0]
         mask = imread(seg_path)[0]
         if img_preprocess_func is not None:
             image = img_preprocess_func(image)
 
         data = resize(image=image, mask=mask)
-        imsave(converted_path + img_path[31:-3] + 'png', data['image'])
-        imsave(converted_path + seg_path[31:-3] + 'png', data['mask'])
+        imsave(img_savename, data['image'])
+        imsave(seg_savename, data['mask'])
 
 
 def convert_test(img_preprocess_func):
@@ -48,11 +52,9 @@ def convert_test(img_preprocess_func):
         return
 
 
-def wavelet_convert(mode='visu'):
-    sigma = {'visu': 0.020, 'bayes': 0.15}
-
-    dataset_convert(f'camus_wavelet_sigma{sigma[mode]}_{mode}',
-                    lambda img: denoise.wavelet_denoise(img, sigma[mode], mode))
+def wavelet_convert(mode, sigma):
+    dataset_convert(f'camus_wavelet_sigma{sigma}_{mode}',
+                    lambda img: denoise.wavelet_denoise(img, sigma, mode))
 
 
 def hmf_convert():
@@ -109,8 +111,9 @@ def gamma_noise_gaps(img, noise_map_dim=(128, 128)):
 
 
 if __name__ == '__main__':
+    denoise_settings = denoise.get_settings_dict()
     hmf_convert()
-    # tv_convert(0.3)
-    # csrad_convert(150, 0.1)
-    # tv_csrad_convert(150, 0.05, 0.3)
-    # combine_method_convert(100, 0.1, 0.5)
+    tv_convert(**denoise_settings['tv'])
+    csrad_convert(**denoise_settings['csrad'])
+    tv_csrad_convert(**denoise_settings['tv_csrad'])
+    combine_method_convert(**denoise_settings['combine'])

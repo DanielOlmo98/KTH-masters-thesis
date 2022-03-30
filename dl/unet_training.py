@@ -203,8 +203,8 @@ if __name__ == '__main__':
         - put us sim img gt though coord transform
         - denoise and then noise
         - blurr denoise?
-        - run val on all
         - train with different weights?
         - speckle eval
         - 5 lvel 64 augm
+        - move denoised datasets test sets
     '''

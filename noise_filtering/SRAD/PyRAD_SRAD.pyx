@@ -6,6 +6,7 @@ from libc.math cimport sqrt, exp, fabs
 """
 Modified from:
 https://github.com/birgander2/PyRAT
+Licensed under the Mozilla Public License 2.0
 """
 @cython.boundscheck(False)
 @cython.wraparound(False)

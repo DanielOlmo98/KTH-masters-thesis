@@ -64,6 +64,18 @@ def hmf_denoise(img):
     return hybrid_median_filtering(img).base
 
 
+def get_settings_dict():
+    return {
+        'wavelet_visu': {'mode': 'visu', 'sigma': 0.02},
+        'wavelet_bayes': {'mode': 'bayes', 'sigma': 0.15},
+        'tv': {'weight': 0.3},
+        'csrad': {'steps': 150, 'step_size': 0.1},
+        'srad': {'steps': 150, 'step_size': 0.1},
+        'tv_csrad': {'steps': 150, 'step_size': 0.05, 'weight': 0.3},
+        'combine': {'steps': 100, 'step_size': 0.1, 'weight': 0.5},
+    }
+
+
 if __name__ == '__main__':
     print()
     img = utils.get_example_img()
