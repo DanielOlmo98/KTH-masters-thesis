@@ -40,7 +40,7 @@ def combined_method(image, steps, step_size, tv_weight=0.5):
     LH, HL, HH = wavelet_HMF(wavelet_coeffs)
     recon_img = pywt.idwt2((LL, (LH, HL, HH)), 'db1')
     recon_img = denoise_tv_bregman(recon_img, weight=tv_weight)
-    return recon_img[:, 0:-1]
+    return recon_img
 
 
 if __name__ == '__main__':

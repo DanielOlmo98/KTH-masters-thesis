@@ -1,6 +1,7 @@
 import os
 import SimpleITK as sitk
 import matplotlib
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage.morphology import binary_erosion
@@ -152,8 +153,8 @@ def load_patient(patient='0001', CH=2, ED_or_ES='ED', png=False, rotate=False, d
         return img, img_header, seg, seg_header
 
 
-def get_example_img():
-    img, _ = load_patient(png=True)
+def get_example_img(png=True):
+    img = load_patient(png=png)[0]
     return img
 
 

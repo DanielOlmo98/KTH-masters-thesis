@@ -6,15 +6,16 @@ import noise_filtering
 from noise_filtering.SRAD.PyRAD_SRAD import cy_csrad, cy_srad
 from noise_filtering.combined_method import combined_method
 from noise_filtering.HMF import hybrid_median_filtering
+from noise_filtering import wavelet_denoise
 from skimage.restoration import denoise_tv_bregman
 
 
-def wavelet_denoise(img, mode, sigma):
+def wavelet_denoise_w(img, sigma, mode):
     if mode not in ['visu', 'bayes']:
         raise ValueError("Mode must be either 'visu' or 'bayes'")
     img = utils.normalize_0_1(img).astype(np.float32)
 
-    return noise_filtering.wavelet_denoise.wavelet_denoise(img, mode, sigma)
+    return wavelet_denoise.wavelet_denoise(img, sigma, mode)
 
 
 def tv_denoise(img, weight):
@@ -66,13 +67,28 @@ def hmf_denoise(img):
 
 def get_settings_dict():
     return {
-        'wavelet_visu': {'mode': 'visu', 'sigma': 0.02},
-        'wavelet_bayes': {'mode': 'bayes', 'sigma': 0.15},
+        'wavelet_visu': {'sigma': 0.02, 'mode': 'visu'},
+        'wavelet_bayes': {'sigma': 0.15, 'mode': 'bayes'},
         'tv': {'weight': 0.3},
         'csrad': {'steps': 150, 'step_size': 0.1},
         'srad': {'steps': 150, 'step_size': 0.1},
         'tv_csrad': {'steps': 150, 'step_size': 0.05, 'weight': 0.3},
-        'combine': {'steps': 100, 'step_size': 0.1, 'weight': 0.5},
+        'combine': {'steps': 100, 'step_size': 0.05, 'weight': 0.5},
+        'hmf': {'none': None}
+    }
+
+
+def get_denoise_lambda_dict():
+    settings_dict = get_settings_dict()
+    return {
+        'wavelet_visu': lambda img: wavelet_denoise_w(img, **settings_dict['wavelet_visu']),
+        'wavelet_bayes': lambda img: wavelet_denoise_w(img, **settings_dict['wavelet_bayes']),
+        'tv': lambda img: tv_denoise(img, **settings_dict['tv']),
+        'combine': lambda img: combined_method_denoise(img, **settings_dict['combine']),
+        'tv_csrad': lambda img: tv_csrad_denoise(img, **settings_dict['tv_csrad']),
+        'csrad': lambda img: csrad_denoise(img, **settings_dict['csrad']),
+        'srad': lambda img: srad_denoise(img, **settings_dict['srad']),
+        'hmf': lambda img: hmf_denoise(img)
     }
 
 

@@ -72,7 +72,7 @@ def convert_test(img_preprocess_func):
 
 def wavelet_convert(mode, sigma):
     dataset_convert(f'camus_wavelet_sigma{sigma}_{mode}',
-                    lambda img: denoise.wavelet_denoise(img, sigma, mode))
+                    lambda img: denoise.wavelet_denoise_w(img, sigma, mode))
 
 
 def hmf_convert(test_set=False):
