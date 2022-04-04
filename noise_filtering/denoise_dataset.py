@@ -129,34 +129,7 @@ def tv_csrad_convert(steps, step_size, weight, test_set=False):
                     og_dataset_folder=og_dataset_folder)
 
 
-def gamma_noise_repeats(img, noise_map_dim=(128, 128)):
-    """
-    Add gamma multiplicative noise, repeats the noise map to match img dimensions.
-    """
-    # rescale factors
-    r_x = img.shape[0] / 128
-    r_y = img.shape[1] / 128
-    noise = np.repeat(np.repeat(np.random.gamma(100, scale=1, size=noise_map_dim), r_x, axis=0), r_y, axis=1)
-    return img * noise
 
-
-def gamma_noise_gaps(img, noise_map_dim=(128, 128)):
-    """
-    Add gamma multiplicative noise, inserts ones in the noise gap to match img dimensions.
-    """
-    # repeat count
-    r_x = img.shape[0] // 128
-    r_y = img.shape[1] // 128
-    noise = np.random.gamma(100, scale=1, size=noise_map_dim)
-    noise = np.insert(noise, list(range(len(noise))) * r_x, 1, axis=0)
-    noise = np.insert(noise, list(range(len(noise))) * r_y, 1, axis=1)
-    while img.shape != noise.shape:
-        if img.shape[0] != noise.shape[0]:
-            noise = np.insert(noise, 0, 1, axis=0)
-        if img.shape[1] != noise.shape[1]:
-            noise = np.insert(noise, 0, 1, axis=1)
-
-    return img * noise
 
 
 if __name__ == '__main__':
