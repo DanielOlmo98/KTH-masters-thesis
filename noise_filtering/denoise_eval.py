@@ -22,6 +22,7 @@ def eval_denoise(img, gt, dn_strength='strong'):
     ))
     for method, dn_lambda in dn_lambda_dict.items():
         dn_img = dn_lambda(img)[0:img.shape[0], 0:img.shape[1]]
+        dn_img = utils.normalize_0_1(dn_img)
         denoised_images[method] = dn_img
         psnr = peak_signal_noise_ratio(image_true=gt, image_test=dn_img)
         mse = mean_squared_error(gt, dn_img)
@@ -30,7 +31,7 @@ def eval_denoise(img, gt, dn_strength='strong'):
             index=[method]
         ))
 
-    plot_denoise(img, gt, denoised_images)
+    plot_denoise(utils.normalize_0_1(img), gt, denoised_images)
     # plot_denoise(img, gt,
     #              {method: np.abs(gt - dn_image) for method, dn_image in denoised_images.items()},
     #              cmap='hot')
@@ -80,23 +81,26 @@ def denoise_eval_synthetic_img():  # img = utils.get_example_img(png=False).sque
     print(eval_frame.loc[:, 'PSNR':'MSE'])
 
 
-def denoise_eval_gammanoise():
-    img_size = (256, 256)
-    ascent_img = utils.normalize_0_1(face(gray=True)).astype(np.float32)
-    ascent_img = cv2.resize(ascent_img, img_size, cv2.INTER_LINEAR)
-
-    img_noised_resize = denoise.gamma_noise_resize(ascent_img, (128, 128)).astype(np.float32)
-    eval_frame = eval_denoise(img_noised_resize, ascent_img, dn_strength='weak')
+def denoise_eval_gammanoise(img, noise_map_size=(256, 256)):
+    img_noised_resize = denoise.gamma_noise_resize(img, noise_map_size).astype(np.float32)
+    eval_frame = eval_denoise(img_noised_resize, img, dn_strength='weak')
     print(eval_frame.loc[:, 'PSNR':'MSE'])
-    #
-    # img_noised_repeats = denoise.gamma_noise_repeats(ascent_img, img_size).astype(np.float32)
-    # eval_frame = eval_denoise(img_noised_repeats, ascent_img, dn_strength='weak')
-    # print(eval_frame.loc[:, 'PSNR':'MSE'])
 
-    # img_noised_gaps = denoise.gamma_noise_gaps(ascent_img).astype(np.float32)
-    # eval_frame = eval_denoise(img_noised_gaps, ascent_img)
-    # print(eval_frame.loc[:, 'PSNR':'MSE'])
+    return eval_frame
+
+
+def denoise_eval_gauss_log(img, noise_map_size=(256, 256), shape=1, scale=0.08):
+    img_noised = denoise.log_tranform_gauss_noise(img, noise_map_size, shape, scale).astype(np.float32)
+    eval_frame = eval_denoise(img_noised, img, dn_strength='weak')
+    print(eval_frame.loc[:, 'PSNR':'MSE'])
+    return eval_frame
 
 
 if __name__ == '__main__':
-    denoise_eval_gammanoise()
+    images = utils.load_images()
+    img_size = (256, 256)
+    img = utils.normalize_0_1(images[8]).astype(np.float32)
+    img = cv2.resize(img, img_size, cv2.INTER_LINEAR)
+    shape, scale = 1, 0.08
+    eval_frame = denoise_eval_gauss_log(img, noise_map_size=img_size, shape=shape, scale=scale)
+    eval_frame.to_csv(f'denoise_eval_low_noise.csv')
