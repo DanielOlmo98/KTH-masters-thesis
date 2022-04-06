@@ -8,6 +8,7 @@ from scipy.ndimage.morphology import binary_erosion
 from matplotlib.colors import ListedColormap
 from skimage.io import imread
 from skimage import color, img_as_float32
+from skimage.exposure import rescale_intensity
 
 import cv2
 
@@ -19,15 +20,19 @@ def binarize(img, threshold=0.5):
 
 
 def normalize_0_1(img):
-    return (img - np.min(img)) / (np.max(img) - np.min(img)).clip(1e-8)
+    img_range = 'image'
+    if np.issubdtype(img.dtype, np.floating):
+        img_range = (0., 1.)
+    elif np.issubdtype(img.dtype, np.integer):
+        img_range = (0, 255)
+
+    return rescale_intensity(img, in_range=img_range, out_range=(0., 1.))
+
+    # return (img - np.min(img)) / (np.max(img) - np.min(img)).clip(1e-8)
 
 
 def normalize_neg1_to_1(img):
     return 2 * (img - np.min(img)) / (np.max(img) - np.min(img)) - 1
-
-
-def normalize_0_255(img):
-    return (normalize_0_1(img) * 255).astype(np.uint8)
 
 
 def get_project_root():

@@ -32,14 +32,14 @@ def wavelet_HMF(coeffs):
     return res[0], res[1], res[2]
 
 
-def combined_method(image, steps, step_size, tv_weight=0.5):
+def combined_method(image, steps, step_size, tv_weight=0.5, max_iter=100, eps=0.001):
     coeffs2 = pywt.dwt2(image, 'db1')
     LL, wavelet_coeffs = coeffs2
 
     LL = csrad(LL, steps=steps, step_size=step_size)
     LH, HL, HH = wavelet_HMF(wavelet_coeffs)
     recon_img = pywt.idwt2((LL, (LH, HL, HH)), 'db1')
-    recon_img = denoise_tv_bregman(recon_img, weight=tv_weight)
+    recon_img = denoise_tv_bregman(recon_img, weight=tv_weight, max_iter=max_iter, eps=eps)
     return recon_img
 
 
