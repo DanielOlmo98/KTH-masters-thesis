@@ -24,10 +24,14 @@ def tv_denoise(img, weight, max_iter=100, eps=0.001):
 
 
 def combined_method_denoise(img, steps, step_size, weight, max_iter=100, eps=0.001):
+    if img.dtype != np.float32:
+        raise TypeError(f'Image is {img.dtype}, needs to be float32')
     return combined_method(img, steps, step_size, weight, max_iter=max_iter, eps=eps)
 
 
 def tv_csrad_denoise(img, steps, step_size, weight, max_iter=100, eps=0.001):
+    if img.dtype != np.float32:
+        raise TypeError(f'Image is {img.dtype}, needs to be float32')
     img = denoise_tv_bregman(img, weight, max_iter=max_iter, eps=eps)
     img_n = img
     ci = np.zeros_like(img)
@@ -39,6 +43,8 @@ def tv_csrad_denoise(img, steps, step_size, weight, max_iter=100, eps=0.001):
 
 
 def csrad_denoise(img, steps, step_size):
+    if img.dtype != np.float32:
+        raise TypeError(f'Image is {img.dtype}, needs to be float32')
     img_n = img
     ci = np.zeros_like(img)
     for n in range(steps):
@@ -49,6 +55,8 @@ def csrad_denoise(img, steps, step_size):
 
 
 def srad_denoise(img, steps, step_size):
+    if img.dtype != np.float32:
+        raise TypeError(f'Image is {img.dtype}, needs to be float32')
     img_n = img
     for n in range(steps):
         img_n = np.abs(img_n)
@@ -66,10 +74,10 @@ def get_settings_dict(denoise_strength='strong'):
 
     denoise_settings = {
         'strong': {
-            'VisuShrink': {'sigma': 0.02, 'mode': 'visu'},
-            'BayesShrink': {'sigma': 0.13, 'mode': 'bayes'},
-            'TV': {'weight': 0.6, 'max_iter': 250, 'eps': 0.001},
-            'CSRAD': {'steps': 150, 'step_size': 0.05},
+            'VisuShrink': {'sigma': 0.015, 'mode': 'visu'},
+            'BayesShrink': {'sigma': 0.1, 'mode': 'bayes'},
+            'TV': {'weight': 0.3, 'max_iter': 250, 'eps': 0.001},
+            'CSRAD': {'steps': 150, 'step_size': 0.1},
             'SRAD': {'steps': 150, 'step_size': 0.05},
             # 'TV_CSRAD': {'steps': 150, 'step_size': 0.05, 'weight': 0.3},
             'Combined': {'steps': 50, 'step_size': 0.001, 'weight': 0.9, 'max_iter': 100, 'eps': 0.005},

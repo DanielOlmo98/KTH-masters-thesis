@@ -42,6 +42,8 @@ def dataset_convert(folder_save_name, img_preprocess_func=None, size=(256, 256),
         if mask.ndim > 2:
             mask = mask[0]
 
+        image = utils.normalize_0_1(image).astype(np.float32)
+
         if img_preprocess_func is not None:
             image = img_preprocess_func(image)
 
@@ -97,28 +99,29 @@ def csrad_convert(steps, step_size, test_set=False):
                     og_dataset_folder=og_dataset_folder)
 
 
-def tv_convert(weight, test_set=False):
+def tv_convert(weight, max_iter, eps, test_set=False):
     foldername = 'camus_tv'
     og_dataset_folder = 'training'
     if test_set:
         foldername += '_test'
         og_dataset_folder = 'test'
-    dataset_convert(f'{foldername}_{weight}', lambda img: denoise.tv_denoise(img, weight),
+    dataset_convert(f'{foldername}_w{weight}_eps{eps}', lambda img: denoise.tv_denoise(img, weight, max_iter, eps),
                     og_dataset_folder=og_dataset_folder)
 
 
-def combine_method_convert(steps, step_size, weight, test_set=False):
+def combine_method_convert(steps, step_size, weight, max_iter, eps, test_set=False):
     foldername = 'camus_combined'
     og_dataset_folder = 'training'
     if test_set:
         foldername += '_test'
         og_dataset_folder = 'test'
-    dataset_convert(f'{foldername}_{steps}-{step_size}_weight-{weight}',
-                    lambda img: denoise.combined_method_denoise(img, steps, step_size, weight),
+    dataset_convert(f'{foldername}_{steps}-{step_size}_w{weight}_eps{eps}',
+                    lambda img: denoise.combined_method_denoise(img, steps, step_size, weight, max_iter, eps),
                     og_dataset_folder=og_dataset_folder)
 
 
 def tv_csrad_convert(steps, step_size, weight, test_set=False):
+    """UNUSED"""
     foldername = 'camus_tv_csrad'
     og_dataset_folder = 'training'
     if test_set:
@@ -129,16 +132,13 @@ def tv_csrad_convert(steps, step_size, weight, test_set=False):
                     og_dataset_folder=og_dataset_folder)
 
 
-
-
-
 if __name__ == '__main__':
-    denoise_settings = denoise.get_settings_dict()
+    denoise_settings = denoise.get_settings_dict('strong')
     # hmf_convert()
-    tv_convert(**denoise_settings['tv'], test_set=False)
-    tv_convert(**denoise_settings['tv'], test_set=True)
-    csrad_convert(**denoise_settings['csrad'], test_set=False)
-    csrad_convert(**denoise_settings['csrad'], test_set=True)
+    # tv_convert(**denoise_settings['TV'], test_set=False)
+    # tv_convert(**denoise_settings['TV'], test_set=True)
+    csrad_convert(**denoise_settings['CSRAD'], test_set=False)
+    csrad_convert(**denoise_settings['CSRAD'], test_set=True)
 
     # tv_csrad_convert(**denoise_settings['tv_csrad'])
     # combine_method_convert(**denoise_settings['combine'])

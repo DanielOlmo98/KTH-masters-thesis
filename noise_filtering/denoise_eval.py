@@ -129,7 +129,7 @@ if __name__ == '__main__':
     gt = cv2.resize(images[6], img_size, cv2.INTER_LINEAR)
     img = cv2.resize(images[6], img_size, cv2.INTER_LINEAR)
     mean, var = 0, 0.03
-    dn_strength = 'weak'
+    dn_strength = 'strong'
     # eval_frame = denoise_specklenoise(img, mean=mean, var=var, dn_strength=dn_strength)
     eval_frame = eval_denoise(img, gt, dn_strength)
     print(eval_frame.loc[:, ['PSNR', 'MSE', 'SSIM']])

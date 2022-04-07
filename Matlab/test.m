@@ -1,7 +1,7 @@
 %% RF signal sim
 addpath('C:\Users\emine\AppData\Roaming\MathWorks\MATLAB Add-Ons\Toolboxes\MUST');
 param = getparam('P4-2v');
-I = imread('s12.png');
+I = imread('s13.png');
 
 [nl,nc,~] = size(I);
 
@@ -16,16 +16,16 @@ lambda = param.c/param.fc;
 [xi,zi] = meshgrid(linspace(0,L,nc)*nc/nl,linspace(0,L,nl));
 xi = xi-L/2*nc/nl; % recenter xi
 
-scatdens = 1; % scatterer density per lambda^2 (you may modify it)
+scatdens = 0.3; % scatterer density per lambda^2 (you may modify it)
 Ns = round(scatdens*L^2*nc/nl/lambda^2); % number of scatterers
 
-x = rand(1,Ns)*L-L/2; % scatterer locations
+x = rand(1,Ns)*L-L/2; % scatterer locationshttps://i.redd.it/7md5v3kvczr81.gif
 z = rand(1,Ns)*L;
 
 Ig = rgb2gray(I); % convert the RGB image to gray
 
 F = scatteredInterpolant(xi(:),zi(:),double(Ig(:))/255);
-g = 0.1; % this parameter adjusts the RC values
+g = 0.2; % this parameter adjusts the RC values
 RC = F(x,z).^(1/g); % reflection coefficients
 
 figure;
@@ -74,5 +74,5 @@ set(gca,'Color','k')
 set(gca,'xtick',[])
 set(gca,'ytick',[])
 
-export_fig 001test.png -grey -r130
+export_fig scat1_g08.png -grey -r130
 
