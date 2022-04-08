@@ -80,7 +80,7 @@ def get_settings_dict(denoise_strength='strong'):
             'CSRAD': {'steps': 150, 'step_size': 0.1},
             'SRAD': {'steps': 150, 'step_size': 0.05},
             # 'TV_CSRAD': {'steps': 150, 'step_size': 0.05, 'weight': 0.3},
-            'Combined': {'steps': 50, 'step_size': 0.001, 'weight': 0.9, 'max_iter': 100, 'eps': 0.005},
+            'Combined': {'steps': 50, 'step_size': 0.1, 'weight': 0.7, 'max_iter': 100, 'eps': 0.001},
             'HMF': {'none': None}
         },
 

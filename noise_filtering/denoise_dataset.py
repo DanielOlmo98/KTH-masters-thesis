@@ -93,7 +93,7 @@ def csrad_convert(steps, step_size, test_set=False):
     foldername = 'camus_csrad'
     og_dataset_folder = 'training'
     if test_set:
-        foldername += 'test'
+        foldername += '_test'
         og_dataset_folder = 'test'
     dataset_convert(f'{foldername}_{steps}-{step_size}', lambda img: denoise.csrad_denoise(img, steps, step_size),
                     og_dataset_folder=og_dataset_folder)
@@ -137,8 +137,9 @@ if __name__ == '__main__':
     # hmf_convert()
     # tv_convert(**denoise_settings['TV'], test_set=False)
     # tv_convert(**denoise_settings['TV'], test_set=True)
-    csrad_convert(**denoise_settings['CSRAD'], test_set=False)
-    csrad_convert(**denoise_settings['CSRAD'], test_set=True)
+    # csrad_convert(**denoise_settings['CSRAD'], test_set=False)
+    # csrad_convert(**denoise_settings['CSRAD'], test_set=True)
 
     # tv_csrad_convert(**denoise_settings['tv_csrad'])
-    # combine_method_convert(**denoise_settings['combine'])
+    combine_method_convert(**denoise_settings['Combined'])
+    combine_method_convert(**denoise_settings['Combined'], test_set=True)
