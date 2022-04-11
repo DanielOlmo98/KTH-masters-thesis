@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from torchvision.transforms import CenterCrop
+from pytorch_wavelets import DWTForward, DWTInverse
 
 
 class ConvBlock(nn.Module):
@@ -31,7 +32,7 @@ class ExpandingPath(nn.Module):
         exp_path_upconv = nn.ModuleList()
         exp_path_blocks = nn.ModuleList()
         for n_channels in self.channels:
-            exp_path_upconv.append(
+            exp_path_upconv.append( # use lambda???
                 nn.ConvTranspose2d(n_channels * 2, n_channels, kernel_size=(2, 2), stride=(2, 2))
             )
             exp_path_blocks.append(
@@ -79,13 +80,13 @@ class ContractingPath(nn.Module):
 
 class Unet(nn.Module):
 
-    def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4):
+    def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4,
+                 pool_layer=nn.MaxPool2d(kernel_size=2, stride=2)):
         super(Unet, self).__init__()
         self.out_ch = output_ch
         self.channels = torch.logspace(np.log2(top_feature_ch), np.log2(top_feature_ch) + levels - 1, levels, 2,
                                        dtype=torch.int)
-
-        self.pooling_layer = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pooling_layer = pool_layer
 
         self.contracting_path = ContractingPath(input_ch, self.channels, self.pooling_layer)
         self.expanding_path = ExpandingPath(self.channels[:-1])

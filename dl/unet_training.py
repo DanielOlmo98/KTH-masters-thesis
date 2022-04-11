@@ -172,12 +172,12 @@ if __name__ == '__main__':
 
     }
 
-    dataset = "camus_png"
+    dataset = "camus_wavelet_sigma0.02_visu"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
-        "augments": True,
+        "augments": False,
         "n_train_aug_threads": 2,
     }
 
@@ -202,9 +202,5 @@ if __name__ == '__main__':
     ''' TODO
         - put us sim img gt though coord transform
         - denoise and then noise
-        - blurr denoise?
-        - train with different weights?
-        - speckle eval
-        - 5 lvel 64 augm
-        - move denoised datasets test sets
+        - speckle isolation
     '''
