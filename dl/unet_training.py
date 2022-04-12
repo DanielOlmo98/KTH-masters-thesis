@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     }
 
-    dataset = "camus_wavelet_sigma0.02_visu"
+    dataset = "camus_wavelet_sigma0.15_bayes"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
