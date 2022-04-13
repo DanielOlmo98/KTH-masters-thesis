@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     }
 
-    dataset = "camus_wavelet_sigma0.15_bayes"
+    dataset = "camus_tv_w0.3_eps0.001"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
@@ -200,7 +200,8 @@ if __name__ == '__main__':
     kfold_train_unet(unet, foldername, **settings)
 
     ''' TODO
-        - put us sim img gt though coord transform
         - denoise and then noise
         - speckle isolation
+        - wilk ranked tests
+            - of all the patients?
     '''
