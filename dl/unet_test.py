@@ -8,6 +8,7 @@ import os
 from unet_model import Unet
 import pandas as pd
 import numpy as np
+from scipy import stats
 
 
 def load_unet(filename, output_ch, levels, top_feature_ch):
@@ -16,7 +17,7 @@ def load_unet(filename, output_ch, levels, top_feature_ch):
     return saved_unet.cuda()
 
 
-def evaluate_unet(unet, val_loader, val_metrics):
+def evaluate_unet(unet, val_loader):
     unet.eval()
     val_loader = iter(val_loader)
     next_batch = next(val_loader)
@@ -40,20 +41,24 @@ def evaluate_unet(unet, val_loader, val_metrics):
             next_batch = next(val_loader)
 
     except StopIteration:
-        metric_lists_ED = torch.FloatTensor(metric_lists_ED)
-        metric_lists_ES = torch.FloatTensor(metric_lists_ES)
-        for metric_list, val_m_dict_key in zip([metric_lists_ED, metric_lists_ES], ['ED', 'ES']):
-            p_list = []
-            r_list = []
-            f1_list = []
-            for n in range(n_classes):
-                p_list.append(torch.mean(metric_list[n, :, 0]))
-                r_list.append(torch.mean(metric_list[n, :, 1]))
-                f1_list.append(torch.mean(metric_list[n, :, 2]))
-            val_metrics[val_m_dict_key]['p'].append(p_list)
-            val_metrics[val_m_dict_key]['r'].append(r_list)
-            val_metrics[val_m_dict_key]['f1'].append(f1_list)
-        pass
+        return metric_lists_ES, metric_lists_ED
+
+
+def average_metrics(metric_lists_ES, metric_lists_ED, val_metrics):
+    metric_lists_ED = torch.FloatTensor(metric_lists_ED)
+    metric_lists_ES = torch.FloatTensor(metric_lists_ES)
+    for metric_list, val_m_dict_key in zip([metric_lists_ED, metric_lists_ES], ['ED', 'ES']):
+        p_list = []
+        r_list = []
+        f1_list = []
+        for n in range(metric_lists_ED.size()[0]):
+            p_list.append(torch.mean(metric_list[n, :, 0]))
+            r_list.append(torch.mean(metric_list[n, :, 1]))
+            f1_list.append(torch.mean(metric_list[n, :, 2]))
+        val_metrics[val_m_dict_key]['p'].append(p_list)
+        val_metrics[val_m_dict_key]['r'].append(r_list)
+        val_metrics[val_m_dict_key]['f1'].append(f1_list)
+    pass
 
 
 def save_metrics(savename, val_metrics_ES_and_ED):
@@ -141,7 +146,8 @@ def val_folds(net_name):
         val_loader = val_loaders[i]
         unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
         # check_predictions(unet, val_loader)
-        evaluate_unet(unet, val_loader, val_metrics)
+        ES_list, ED_list = evaluate_unet(unet, val_loader)
+        average_metrics(ES_list, ED_list, val_metrics)
     eval_results = save_metrics(f'{path}val_', val_metrics)
     return eval_results
 
@@ -151,8 +157,39 @@ def eval_test_set(unet, net_name):
     test_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
     subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
     test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)
-    evaluate_unet(unet, test_loader, test_metrics)
+    ES_list, ED_list = evaluate_unet(unet, test_loader)
+    average_metrics(ES_list, ED_list, test_metrics)
     save_metrics(f'train_results/camus_png/{net_name}/test_', test_metrics)
+
+
+def wilcox_test(net_name1, net_name2):
+    """
+    TEST
+    :param net_name1:
+    :param net_name2:
+    :return:
+    """
+
+    def get_ED_ES_lists(net_name):
+        path = f"train_results/{net_name}/"
+
+        with open(f'{path}settings.json', 'r') as file:
+            settings = json.load(file)
+
+        test_set = CamusDatasetPNG(dataset=settings['dataloader_settings']['dataset']['path'].split("/")[2] + "_test")
+
+        subset1 = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
+        test_loader1 = dl.dataloader.DataLoader(subset1, batch_size=1, shuffle=True)
+
+        unet = load_unet()
+
+        return evaluate_unet(unet, test_loader1)
+
+    ED1, ES1 = get_ED_ES_lists(net_name1)
+    ED2, ES2 = get_ED_ES_lists(net_name2)
+
+    stats.wilcoxon(ED1, ED2)
+    stats.wilcoxon(ES1, ES2)
 
 
 if __name__ == '__main__':

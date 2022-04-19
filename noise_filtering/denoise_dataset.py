@@ -72,8 +72,12 @@ def convert_test(img_preprocess_func):
         return
 
 
-def wavelet_convert(mode, sigma):
-    dataset_convert(f'camus_wavelet_sigma{sigma}_{mode}',
+def wavelet_convert(mode, sigma, test_set=False):
+    foldername = 'camus_csrad'
+    if test_set:
+        foldername += '_test'
+
+    dataset_convert(foldername,
                     lambda img: denoise.wavelet_denoise_w(img, sigma, mode))
 
 
@@ -90,44 +94,44 @@ def hmf_convert(test_set=False):
 
 
 def csrad_convert(steps, step_size, test_set=False):
-    foldername = 'camus_csrad'
+    foldername = f'camus_csrad_{steps}-{step_size}'
     og_dataset_folder = 'training'
     if test_set:
         foldername += '_test'
         og_dataset_folder = 'test'
-    dataset_convert(f'{foldername}_{steps}-{step_size}', lambda img: denoise.csrad_denoise(img, steps, step_size),
+    dataset_convert(foldername, lambda img: denoise.csrad_denoise(img, steps, step_size),
                     og_dataset_folder=og_dataset_folder)
 
 
 def tv_convert(weight, max_iter, eps, test_set=False):
-    foldername = 'camus_tv'
+    foldername = f'camus_tv_w{weight}_eps{eps}'
     og_dataset_folder = 'training'
     if test_set:
         foldername += '_test'
         og_dataset_folder = 'test'
-    dataset_convert(f'{foldername}_w{weight}_eps{eps}', lambda img: denoise.tv_denoise(img, weight, max_iter, eps),
+    dataset_convert(foldername, lambda img: denoise.tv_denoise(img, weight, max_iter, eps),
                     og_dataset_folder=og_dataset_folder)
 
 
 def combine_method_convert(steps, step_size, weight, max_iter, eps, test_set=False):
-    foldername = 'camus_combined'
+    foldername = f'camus_combined_{steps}-{step_size}_w{weight}_eps{eps}'
     og_dataset_folder = 'training'
     if test_set:
         foldername += '_test'
         og_dataset_folder = 'test'
-    dataset_convert(f'{foldername}_{steps}-{step_size}_w{weight}_eps{eps}',
+    dataset_convert(foldername,
                     lambda img: denoise.combined_method_denoise(img, steps, step_size, weight, max_iter, eps),
                     og_dataset_folder=og_dataset_folder)
 
 
 def tv_csrad_convert(steps, step_size, weight, test_set=False):
     """UNUSED"""
-    foldername = 'camus_tv_csrad'
+    foldername = f'camus_tv_csrad_{steps}-{step_size}_weight-{weight}'
     og_dataset_folder = 'training'
     if test_set:
         foldername += '_test'
         og_dataset_folder = 'test'
-    dataset_convert(f'{foldername}_{steps}-{step_size}_weight-{weight}',
+    dataset_convert(foldername,
                     lambda img: denoise.tv_csrad_denoise(img, steps, step_size, weight),
                     og_dataset_folder=og_dataset_folder)
 

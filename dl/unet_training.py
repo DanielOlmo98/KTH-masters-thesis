@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     }
 
-    dataset = "camus_tv_w0.3_eps0.001"
+    dataset = "camus_csrad_150-0.1"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
@@ -203,5 +203,6 @@ if __name__ == '__main__':
         - denoise and then noise
         - speckle isolation
         - wilk ranked tests
-            - of all the patients?
+            - of all the patients? in the test set
+        - get rid of MSE or PSNR
     '''
