@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     }
 
-    dataset = "camus_csrad_150-0.1"
+    dataset = "camus_combined_50-0.1_w0.7_eps0.001"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,

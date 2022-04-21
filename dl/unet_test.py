@@ -58,7 +58,7 @@ def average_metrics(metric_lists_ES, metric_lists_ED, val_metrics):
         val_metrics[val_m_dict_key]['p'].append(p_list)
         val_metrics[val_m_dict_key]['r'].append(r_list)
         val_metrics[val_m_dict_key]['f1'].append(f1_list)
-    pass
+    return
 
 
 def save_metrics(savename, val_metrics_ES_and_ED):
@@ -136,11 +136,11 @@ def get_checkpoints_paths(path):
     return checkpoint_paths, settings
 
 
-def val_folds(net_name):
-    path = f"train_results/{net_name}/"
+def val_folds(net_name, dataset_name):
+    path = f"train_results/{dataset_name}/{net_name}/"
     val_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
     checkpoint_path_list, settings = get_checkpoints_paths(path)
-    val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=len(checkpoint_path_list))
+    val_loaders = KFoldValLoaders(CamusDatasetPNG(dataset_name), split=len(checkpoint_path_list))
     for i, checkpoint_path in enumerate(checkpoint_path_list):
         # print(f'Evaluating fold {i}')
         val_loader = val_loaders[i]
@@ -152,57 +152,68 @@ def val_folds(net_name):
     return eval_results
 
 
-def eval_test_set(unet, net_name):
-    test_set = CamusDatasetPNG(dataset='camus_png_test')
+def eval_test_set(net_name, dataset_name):
+    path = f"train_results/{dataset_name}/{net_name}/"
+    test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
     test_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
     subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
+    checkpoint_path_list, settings = get_checkpoints_paths(path)
     test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)
-    ES_list, ED_list = evaluate_unet(unet, test_loader)
-    average_metrics(ES_list, ED_list, test_metrics)
-    save_metrics(f'train_results/camus_png/{net_name}/test_', test_metrics)
+    for checkpoint_path in checkpoint_path_list:
+        unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
+        ES_list, ED_list = evaluate_unet(unet, test_loader)
+        average_metrics(ES_list, ED_list, test_metrics)
+    return save_metrics(f'{path}test_', test_metrics)
 
 
-def wilcox_test(net_name1, net_name2):
+def wilcox_test(net_name1, net_name2, dataset_name1, dataset_name2):
     """
     TEST
-    :param net_name1:
-    :param net_name2:
-    :return:
     """
 
-    def get_ED_ES_lists(net_name):
-        path = f"train_results/{net_name}/"
+    ED1, ES1 = [], []
+    ED2, ES2 = [], []
 
-        with open(f'{path}settings.json', 'r') as file:
-            settings = json.load(file)
+    def fill_ED_ES_lists(net_name, dataset_name, ED, ES):
+        path = f"train_results/{dataset_name}/{net_name}/"
+        test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
+        subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
+        checkpoint_path_list, settings = get_checkpoints_paths(path)
+        test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)
+        for checkpoint_path in checkpoint_path_list:
+            unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
+            ES_list, ED_list = evaluate_unet(unet, test_loader)
+            ES.append(ES_list)
+            ED.append(ED_list)
 
-        test_set = CamusDatasetPNG(dataset=settings['dataloader_settings']['dataset']['path'].split("/")[2] + "_test")
+    fill_ED_ES_lists(net_name1, dataset_name1, ED1, ES1)
+    fill_ED_ES_lists(net_name2, dataset_name2, ED2, ES2)
 
-        subset1 = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
-        test_loader1 = dl.dataloader.DataLoader(subset1, batch_size=1, shuffle=True)
-
-        unet = load_unet()
-
-        return evaluate_unet(unet, test_loader1)
-
-    ED1, ES1 = get_ED_ES_lists(net_name1)
-    ED2, ES2 = get_ED_ES_lists(net_name2)
-
-    stats.wilcoxon(ED1, ED2)
-    stats.wilcoxon(ES1, ES2)
-
+    for split in range(len(ED1)):
+        for nclass in range(len(ED1[0]) - 1):
+            nclass = +1
+            EDwil = stats.wilcoxon(ED1[split][nclass][:][-1], ED2[split][nclass][:][-1], zero_method='zsplit')
+            ESwil = stats.wilcoxon(ES2[split][nclass][:][-1], ES2[split][nclass][:][-1], zero_method='zsplit')
+            print(EDwil)
+            print(ESwil)
 
 if __name__ == '__main__':
     # path = 'train_results/camus_png/unet_5levels_augment_False_16top/fold_0.pt'
     # unet = load_unet(path, out_channels=4, levels=5, top_ch=64)
     # val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
     # check_predictions(unet, val_loaders[0], n_images=1)
-    for net_folder in os.listdir('train_results/camus_png'):
-        print(f'\n\n\n{net_folder}')
-        eval_results = val_folds(f'camus_png/{net_folder}')
-        with pd.option_context('precision', 3):
-            print('ED')
-            print(eval_results.xs('avg').xs('ED', axis=1))
-            print('\nES')
-            print(eval_results.xs('avg').xs('ES', axis=1))
-    # eval_test_set(unet)
+
+    # folder_name = 'camus_wavelet_sigma0.15_bayes'
+    # for net_folder in os.listdir(f'train_results/{folder_name}'):
+    #     print(f'\n{net_folder}')
+    #     eval_results = eval_test_set(net_folder, folder_name)
+    #     with pd.option_context('precision', 3):
+    #         print('ED')
+    #         print(eval_results.xs('avg').xs('ED', axis=1))
+    #         print('\nES')
+    #         print(eval_results.xs('avg').xs('ES', axis=1))
+
+    net_name1 = 'unet_5levels_augment_False_32top'
+    net_name2 = 'unet_5levels_augment_False_32top'
+    dataset_name = 'camus_png'
+    wilcox_test(net_name1, net_name2, dataset_name, dataset_name)
