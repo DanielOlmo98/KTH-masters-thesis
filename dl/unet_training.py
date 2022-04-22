@@ -202,7 +202,7 @@ if __name__ == '__main__':
     ''' TODO
         - denoise and then noise
         - speckle isolation
-        - wilk ranked tests
+        - wilk ranked tests on despeckeld
             - of all the patients? in the test set
         - get rid of MSE or PSNR
     '''

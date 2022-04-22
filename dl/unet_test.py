@@ -1,3 +1,4 @@
+import tensorflow_estimator.python.estimator.early_stopping
 import torch
 import utils
 import dl
@@ -9,6 +10,7 @@ from unet_model import Unet
 import pandas as pd
 import numpy as np
 from scipy import stats
+import random
 
 
 def load_unet(filename, output_ch, levels, top_feature_ch):
@@ -17,7 +19,7 @@ def load_unet(filename, output_ch, levels, top_feature_ch):
     return saved_unet.cuda()
 
 
-def evaluate_unet(unet, val_loader):
+def evaluate_unet(unet, val_loader, only_f1=False):
     unet.eval()
     val_loader = iter(val_loader)
     next_batch = next(val_loader)
@@ -34,9 +36,11 @@ def evaluate_unet(unet, val_loader):
                 for n in range(n_classes):
                     # append 1x3 tensor per class containing precision recall and f1 for the class
                     if ED_or_ES[i] == 1:
-                        metric_lists_ED[n].append(dl.metrics.get_f1_metrics(prediction[:, n, :, :], seg[:, n, :, :]))
+                        metric_lists_ED[n].append(
+                            dl.metrics.get_f1_metrics(prediction[:, n, :, :], seg[:, n, :, :], only_f1))
                     elif ED_or_ES[i] == 2:
-                        metric_lists_ES[n].append(dl.metrics.get_f1_metrics(prediction[:, n, :, :], seg[:, n, :, :]))
+                        metric_lists_ES[n].append(
+                            dl.metrics.get_f1_metrics(prediction[:, n, :, :], seg[:, n, :, :], only_f1))
 
             next_batch = next(val_loader)
 
@@ -44,7 +48,7 @@ def evaluate_unet(unet, val_loader):
         return metric_lists_ES, metric_lists_ED
 
 
-def average_metrics(metric_lists_ES, metric_lists_ED, val_metrics):
+def average_indvidual_metrics(metric_lists_ES, metric_lists_ED, val_metrics):
     metric_lists_ED = torch.FloatTensor(metric_lists_ED)
     metric_lists_ES = torch.FloatTensor(metric_lists_ES)
     for metric_list, val_m_dict_key in zip([metric_lists_ED, metric_lists_ES], ['ED', 'ES']):
@@ -78,7 +82,7 @@ def save_metrics(savename, val_metrics_ES_and_ED):
         )
         col_sub_idxs = pd.MultiIndex.from_product([range(n_classes)], names=['class'])
         metrics_frame = pd.DataFrame(np.vstack(fold_arrays), index=row_idxs, columns=col_sub_idxs)
-        avgs = calc_metric_avgs(metrics_frame, list(val_metrics.keys()))
+        avgs = calc_metric_folds_avgs(metrics_frame, list(val_metrics.keys()))
         m_frames.append(pd.concat([metrics_frame, avgs]))
 
     metrics_frame_full = pd.concat(m_frames, keys=list(val_metrics_ES_and_ED.keys()), axis=1)
@@ -86,7 +90,7 @@ def save_metrics(savename, val_metrics_ES_and_ED):
     return metrics_frame_full
 
 
-def calc_metric_avgs(metrics_frame, metrics_name):
+def calc_metric_folds_avgs(metrics_frame, metrics_name):
     avgs = []
     f1_std = []
     for metric in metrics_name:
@@ -147,7 +151,7 @@ def val_folds(net_name, dataset_name):
         unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
         # check_predictions(unet, val_loader)
         ES_list, ED_list = evaluate_unet(unet, val_loader)
-        average_metrics(ES_list, ED_list, val_metrics)
+        average_indvidual_metrics(ES_list, ED_list, val_metrics)
     eval_results = save_metrics(f'{path}val_', val_metrics)
     return eval_results
 
@@ -158,11 +162,11 @@ def eval_test_set(net_name, dataset_name):
     test_metrics = {'ED': {'p': [], 'r': [], 'f1': []}, 'ES': {'p': [], 'r': [], 'f1': []}}
     subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
     checkpoint_path_list, settings = get_checkpoints_paths(path)
-    test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)
+    test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=False)
     for checkpoint_path in checkpoint_path_list:
         unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
         ES_list, ED_list = evaluate_unet(unet, test_loader)
-        average_metrics(ES_list, ED_list, test_metrics)
+        average_indvidual_metrics(ES_list, ED_list, test_metrics)
     return save_metrics(f'{path}test_', test_metrics)
 
 
@@ -171,49 +175,62 @@ def wilcox_test(net_name1, net_name2, dataset_name1, dataset_name2):
     TEST
     """
 
-    ED1, ES1 = [], []
-    ED2, ES2 = [], []
+    ED1, ES1 = [[], [], []], [[], [], []]
+    ED2, ES2 = [[], [], []], [[], [], []]
 
     def fill_ED_ES_lists(net_name, dataset_name, ED, ES):
         path = f"train_results/{dataset_name}/{net_name}/"
         test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
         subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
         checkpoint_path_list, settings = get_checkpoints_paths(path)
-        test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=True)
+        test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=False)
         for checkpoint_path in checkpoint_path_list:
             unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
-            ES_list, ED_list = evaluate_unet(unet, test_loader)
-            ES.append(ES_list)
-            ED.append(ED_list)
+            ES_list, ED_list = evaluate_unet(unet, test_loader, only_f1=True)
+            for i in range(1, 4):  # skip the background class
+                # [ES[i-1].append(f1.item()) for f1 in ES_list[i]]
+                # [ED[i-1].append(f1.item()) for f1 in ED_list[i]]
+                ES[i - 1].append(ES_list[i])
+                ED[i - 1].append(ED_list[i])
+
+    def average_folds(f1_scores):
+        f1_scores = torch.tensor(f1_scores)
+        averaged_scores = [[] for _ in range(f1_scores.shape[0])]  # one list per class
+        for i in range(f1_scores.shape[-1]):
+            for j in range(f1_scores.shape[0]):
+                averaged_scores[j].append(torch.mean(f1_scores[j, :, i]).item())
+
+        return averaged_scores
 
     fill_ED_ES_lists(net_name1, dataset_name1, ED1, ES1)
     fill_ED_ES_lists(net_name2, dataset_name2, ED2, ES2)
 
-    for split in range(len(ED1)):
-        for nclass in range(len(ED1[0]) - 1):
-            nclass = +1
-            EDwil = stats.wilcoxon(ED1[split][nclass][:][-1], ED2[split][nclass][:][-1], zero_method='zsplit')
-            ESwil = stats.wilcoxon(ES2[split][nclass][:][-1], ES2[split][nclass][:][-1], zero_method='zsplit')
-            print(EDwil)
-            print(ESwil)
+    ED1 = average_folds(ED1)
+    ED2 = average_folds(ED2)
+    ES1 = average_folds(ES1)
+    ES2 = average_folds(ES2)
+
+    for nclass in range(len(ED1)):
+        EDwil = stats.wilcoxon(ED1[nclass], ED2[nclass])
+        ESwil = stats.wilcoxon(ES1[nclass], ES2[nclass])
+        if EDwil.pvalue > 0.01:
+            print(f'ED class {nclass + 1} pvalue: {EDwil.pvalue}')
+        if ESwil.pvalue > 0.01:
+            print(f'ES class {nclass + 1} pvalue: {ESwil.pvalue}')
+
 
 if __name__ == '__main__':
-    # path = 'train_results/camus_png/unet_5levels_augment_False_16top/fold_0.pt'
-    # unet = load_unet(path, out_channels=4, levels=5, top_ch=64)
-    # val_loaders = KFoldValLoaders(CamusDatasetPNG(), split=8)
-    # check_predictions(unet, val_loaders[0], n_images=1)
+    net_name1 = 'unet_5levels_augment_False_64top'
+    datasets = os.listdir('train_results')
+    for dataset_name in datasets:
+    # dataset_name = 'camus_png'
+        print(f'\n\n{dataset_name}')
+        eval_results = eval_test_set(net_name1, dataset_name)
+        with pd.option_context('precision', 3):
+            print('ED')
+            print(eval_results.xs('avg').xs('ED', axis=1))
+            print('\nES')
+            print(eval_results.xs('avg').xs('ES', axis=1))
 
-    # folder_name = 'camus_wavelet_sigma0.15_bayes'
-    # for net_folder in os.listdir(f'train_results/{folder_name}'):
-    #     print(f'\n{net_folder}')
-    #     eval_results = eval_test_set(net_folder, folder_name)
-    #     with pd.option_context('precision', 3):
-    #         print('ED')
-    #         print(eval_results.xs('avg').xs('ED', axis=1))
-    #         print('\nES')
-    #         print(eval_results.xs('avg').xs('ES', axis=1))
-
-    net_name1 = 'unet_5levels_augment_False_32top'
-    net_name2 = 'unet_5levels_augment_False_32top'
-    dataset_name = 'camus_png'
-    wilcox_test(net_name1, net_name2, dataset_name, dataset_name)
+    # net_name2 = 'unet_5levels_augment_False_64top'
+    # wilcox_test(net_name1, net_name2, dataset_name, dataset_name)

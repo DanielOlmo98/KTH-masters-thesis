@@ -89,10 +89,12 @@ def print_metrics(input, target):
         print(f"Class {n + 1}:\n  Recall: {r:.3f}, Precision: {p:.3f}, F1: {f1:.3f}")
 
 
-def get_f1_metrics(input, target):
+def get_f1_metrics(input, target, only_f1=False):
+    f1 = f1_score(input, target, 1)
+    if only_f1:
+        return f1
     p = precision(input, target)
     r = recall(input, target)
-    f1 = f1_score(input, target, 1)
     return p, r, f1
 
 
