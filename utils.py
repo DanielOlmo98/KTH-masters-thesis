@@ -1,4 +1,5 @@
 import os
+import torch
 import SimpleITK as sitk
 import matplotlib
 import pandas as pd
@@ -64,6 +65,11 @@ def load_images(path=(get_project_root() + '/image/')):
 
 
 def plot_image_g(img, overlay_img=None, title=None, ax=None, cmap_overlay=None, alpha_overlay=0.2):
+    if isinstance(img, torch.Tensor):
+        img = img.cpu().numpy()
+        while img.ndim > 2:
+            img = img.squeeze()
+
     if cmap_overlay is None:
         # cmap_overlay = ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
         colors = ['none', 'gold', 'lime', 'blue', 'red']

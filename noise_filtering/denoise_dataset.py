@@ -142,8 +142,8 @@ if __name__ == '__main__':
     # tv_convert(**denoise_settings['TV'], test_set=False)
     # tv_convert(**denoise_settings['TV'], test_set=True)
     # csrad_convert(**denoise_settings['CSRAD'], test_set=False)
-    # csrad_convert(**denoise_settings['CSRAD'], test_set=True)
+    csrad_convert(**denoise_settings['CSRAD'], test_set=True)
 
     # tv_csrad_convert(**denoise_settings['tv_csrad'])
-    combine_method_convert(**denoise_settings['Combined'])
-    combine_method_convert(**denoise_settings['Combined'], test_set=True)
+    # combine_method_convert(**denoise_settings['Combined'])
+    # combine_method_convert(**denoise_settings['Combined'], test_set=True)

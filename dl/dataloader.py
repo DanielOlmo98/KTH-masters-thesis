@@ -176,7 +176,7 @@ class KFoldLoaders:
     Uses sklearns KFold to create and iterator that returns training and validation loaders for each fold.
     """
 
-    def __init__(self, batch_size, split, dataset, augments=None, n_train_aug_threads=1):
+    def __init__(self, batch_size, split, dataset, augments=None, n_train_aug_threads=2):
         """
         Creates the KFold loaders iterator.
         :param batch_size: Batch size of the train loader.

@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 import random
+import itertools
 
 
 def load_unet(filename, output_ch, levels, top_feature_ch):
@@ -219,18 +220,31 @@ def wilcox_test(net_name1, net_name2, dataset_name1, dataset_name2):
             print(f'ES class {nclass + 1} pvalue: {ESwil.pvalue}')
 
 
+def wilx_compare_all():
+    net_name1 = 'unet_5levels_augment_False_64top'
+    datasets = os.listdir('train_results')
+
+    for combination in itertools.combinations(datasets, 2):
+        dataset1 = combination[0]
+        dataset2 = combination[1]
+        print(f'\n\n\n{dataset1} and {dataset2}')
+        wilcox_test(net_name1, net_name1, dataset1, dataset2)
+
+
 if __name__ == '__main__':
     net_name1 = 'unet_5levels_augment_False_64top'
     datasets = os.listdir('train_results')
-    for dataset_name in datasets:
-    # dataset_name = 'camus_png'
-        print(f'\n\n{dataset_name}')
-        eval_results = eval_test_set(net_name1, dataset_name)
-        with pd.option_context('precision', 3):
-            print('ED')
-            print(eval_results.xs('avg').xs('ED', axis=1))
-            print('\nES')
-            print(eval_results.xs('avg').xs('ES', axis=1))
+
+    # wilx_compare_all()
+    # for dataset_name in datasets:
+    dataset_name = 'camus_csrad_150-0.1'
+    print(f'\n\n{dataset_name}')
+    eval_results = eval_test_set(net_name1, dataset_name)
+    with pd.option_context('precision', 3):
+        print('ED')
+        print(eval_results.xs('avg').xs('ED', axis=1))
+        print('\nES')
+        print(eval_results.xs('avg').xs('ES', axis=1))
 
     # net_name2 = 'unet_5levels_augment_False_64top'
     # wilcox_test(net_name1, net_name2, dataset_name, dataset_name)

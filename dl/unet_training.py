@@ -67,6 +67,7 @@ def train(optimizer, loss_func, train_loop, unet):
     unet.train()
     for _, data in enumerate(train_loop):
         img, gt, _ = data
+        # utils.plot_image_g(img[0])
         # input_names = ['img']
         # output_names = ['seg']
         # torch.onnx.export(unet, img, 'unet.onnx', input_names=input_names, output_names=output_names)
@@ -107,8 +108,6 @@ def kfold_train_unet(unet, foldername, train_settings, dataloader_settings, **kw
 
     if dataloader_settings['augments'] is True:
         dataloader_settings['augments'] = get_transforms(**aug_settings)
-    else:
-        dataloader_settings['augments'] = None
     kf_loader = KFoldLoaders(**dataloader_settings)
 
     fold_count = 0
@@ -172,12 +171,18 @@ if __name__ == '__main__':
 
     }
 
+    import albumentations as A
+    import albumentations.pytorch
+
+    transformer = [A.GaussNoise(p=1., var_limit=(10, 50)), A.pytorch.ToTensorV2()]
+    transformer = A.Compose(transformer)
+
     dataset = "camus_combined_50-0.1_w0.7_eps0.001"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
-        "augments": False,
+        "augments": transformer,
         "n_train_aug_threads": 2,
     }
 
@@ -186,9 +191,9 @@ if __name__ == '__main__':
                 'aug_settings': aug_settings,
                 'dataloader_settings': dataloader_settings,
                 }
-
+    # {dataloader_settings['augments']}
     foldername = f"train_results/{dataset}/unet_{unet_settings['levels']}" \
-                 f"levels_augment_{dataloader_settings['augments']}" \
+                 f"levels_augment_noise" \
                  f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
@@ -205,4 +210,6 @@ if __name__ == '__main__':
         - wilk ranked tests on despeckeld
             - of all the patients? in the test set
         - get rid of MSE or PSNR
+        - dice with each other
+        - tv vs combined
     '''
