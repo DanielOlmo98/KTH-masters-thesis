@@ -212,4 +212,5 @@ if __name__ == '__main__':
         - get rid of MSE or PSNR
         - dice with each other
         - tv vs combined
+        - center crop on denoise eval
     '''
