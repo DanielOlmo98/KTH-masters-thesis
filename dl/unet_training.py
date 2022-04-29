@@ -6,7 +6,7 @@ import json
 from tqdm import tqdm
 import dl.metrics
 import utils
-from unet_model import Unet
+from unet_model import Unet, DwtDownsample, IDwtUpsample
 import pandas as pd
 from torch.utils.data import DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -16,6 +16,7 @@ import torch.optim as optim
 import numpy as np
 from torch.profiler import profile, record_function, ProfilerActivity
 from pynvml.smi import nvidia_smi
+from pytorch_wavelets import DWTForward, DWTInverse
 
 
 def train_loop(unet, train_loader, val_loader, savename, epochs, optimizer, loss_func, **kwargs):
@@ -108,6 +109,9 @@ def kfold_train_unet(unet, foldername, train_settings, dataloader_settings, **kw
 
     if dataloader_settings['augments'] is True:
         dataloader_settings['augments'] = get_transforms(**aug_settings)
+    else:
+        dataloader_settings['augments'] = None
+
     kf_loader = KFoldLoaders(**dataloader_settings)
 
     fold_count = 0
@@ -149,7 +153,10 @@ if __name__ == '__main__':
     unet_settings = {
         'levels': 5,
         'top_feature_ch': 64,
-        'output_ch': 4
+        'output_ch': 4,
+        'pool_layer': DwtDownsample(),
+        'upsample_layer': lambda n_ch: IDwtUpsample(),
+
     }
     unet = Unet(**unet_settings).cuda()
 
@@ -171,18 +178,18 @@ if __name__ == '__main__':
 
     }
 
-    import albumentations as A
-    import albumentations.pytorch
+    # import albumentations as A
+    # import albumentations.pytorch
+    #
+    # transformer = [A.GaussNoise(p=1., var_limit=(10, 50)), A.pytorch.ToTensorV2()]
+    # transformer = A.Compose(transformer)
 
-    transformer = [A.GaussNoise(p=1., var_limit=(10, 50)), A.pytorch.ToTensorV2()]
-    transformer = A.Compose(transformer)
-
-    dataset = "camus_combined_50-0.1_w0.7_eps0.001"
+    dataset = "camus_png"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
-        "augments": transformer,
+        "augments": False,
         "n_train_aug_threads": 2,
     }
 
@@ -192,8 +199,8 @@ if __name__ == '__main__':
                 'dataloader_settings': dataloader_settings,
                 }
     # {dataloader_settings['augments']}
-    foldername = f"train_results/{dataset}/unet_{unet_settings['levels']}" \
-                 f"levels_augment_noise" \
+    foldername = f"train_results/{dataset}/wavelet_unet_{unet_settings['levels']}" \
+                 f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
@@ -211,4 +218,5 @@ if __name__ == '__main__':
         - tv vs combined
         - center crop on denoise eval
         - check distribution on bayesshirnk and HMF
+        - scrap volume analysis
     '''

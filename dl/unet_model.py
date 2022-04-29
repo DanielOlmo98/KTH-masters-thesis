@@ -23,17 +23,17 @@ class ConvBlock(nn.Module):
 
 class ExpandingPath(nn.Module):
 
-    def __init__(self, channels):
+    def __init__(self, channels, upsample_layer):
         super(ExpandingPath, self).__init__()
         self.channels = reversed(channels)
-        self.exp_path_upconv, self.exp_path_blocks = self.get_expanding_path()
+        self.exp_path_upconv, self.exp_path_blocks = self.get_expanding_path(upsample_layer)
 
-    def get_expanding_path(self):
+    def get_expanding_path(self, upsample_layer):
         exp_path_upconv = nn.ModuleList()
         exp_path_blocks = nn.ModuleList()
         for n_channels in self.channels:
-            exp_path_upconv.append( # use lambda???
-                nn.ConvTranspose2d(n_channels * 2, n_channels, kernel_size=(2, 2), stride=(2, 2))
+            exp_path_upconv.append(  # use lambda???
+                upsample_layer(n_channels)
             )
             exp_path_blocks.append(
                 ConvBlock(n_channels * 2, n_channels)
@@ -81,15 +81,25 @@ class ContractingPath(nn.Module):
 class Unet(nn.Module):
 
     def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4,
-                 pool_layer=nn.MaxPool2d(kernel_size=2, stride=2)):
+                 pool_layer=None,
+                 upsample_layer=None):
         super(Unet, self).__init__()
         self.out_ch = output_ch
         self.channels = torch.logspace(np.log2(top_feature_ch), np.log2(top_feature_ch) + levels - 1, levels, 2,
                                        dtype=torch.int)
-        self.pooling_layer = pool_layer
+        '''Default up and downsample layers'''
+        if pool_layer is None:
+            self.pooling_layer = nn.MaxPool2d(kernel_size=2, stride=2)
+        else:
+            self.pooling_layer = pool_layer
+
+        if upsample_layer is None:
+            self.upsample_layer = lambda n_ch: nn.ConvTranspose2d(n_ch * 2, n_ch, kernel_size=(2, 2), stride=(2, 2))
+        else:
+            self.upsample_layer = upsample_layer
 
         self.contracting_path = ContractingPath(input_ch, self.channels, self.pooling_layer)
-        self.expanding_path = ExpandingPath(self.channels[:-1])
+        self.expanding_path = ExpandingPath(self.channels[:-1], self.upsample_layer)
 
         self.end = nn.Conv2d(self.channels[0], self.out_ch, kernel_size=(1, 1), padding='same')
 
@@ -111,6 +121,27 @@ class Unet(nn.Module):
         for layer in self.children():
             if hasattr(layer, 'reset_parameters'):
                 layer.reset_parameters()
+
+
+class DwtDownsample(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dwt = DWTForward(J=1, wave='db1')
+
+    def forward(self, x):
+        Yl, Yh = self.dwt(x)
+        s_bands = torch.unbind(Yh[0], dim=2)
+        return torch.stack((Yl, s_bands[0], s_bands[1], s_bands[2]), dim=2)
+
+
+class IDwtUpsample(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.idwt = DWTInverse(wave='db1')
+
+    def forward(self, x):
+        s_bands = torch.chunk(x, 4, dim=1)
+        return self.idwt((s_bands[0], s_bands[1], s_bands[2], s_bands[3]))
 
 
 import unittest

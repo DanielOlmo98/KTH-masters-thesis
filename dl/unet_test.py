@@ -107,7 +107,12 @@ def calc_metric_folds_avgs(metrics_frame, metrics_name):
     return pd.DataFrame([*avgs, *f1_std], index=row_idxs)
 
 
-def check_predictions(unet, val_loader, n_images):
+def check_predictions(net_name, dataset_name, n_images=1):
+    path = f"train_results/{dataset_name}/{net_name}/"
+    checkpoint_path_list, settings = get_checkpoints_paths(path)
+    val_loaders = KFoldValLoaders(CamusDatasetPNG(dataset_name), split=8)
+    val_loader = val_loaders[0]
+    unet = load_unet(path + checkpoint_path_list[0], **settings['unet_settings'])
     unet.eval()
     with torch.no_grad():
         for i, data in enumerate(val_loader):
@@ -118,12 +123,13 @@ def check_predictions(unet, val_loader, n_images):
             prediction = torch.softmax(prediction, dim=1)
             prediction = (prediction > 0.5).float().squeeze(dim=0)
             dl.metrics.print_metrics(prediction, seg)
+            print()
             prediction = prediction.cpu().detach().numpy()
             img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
             seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
             # utils.plot_onehot_seg(img, seg, title='Ground Truth')
             # utils.plot_onehot_seg(img, prediction, title='Prediction')
-            utils.plot_onehot_seg(img, prediction, outline=seg)
+            utils.plot_onehot_seg(img, prediction, outline=seg, title=f'{dataset_name}, {net_name}')
             ''' Legend:
             green: overlap
             orange: missed
@@ -232,19 +238,24 @@ def wilx_compare_all():
 
 
 if __name__ == '__main__':
-    net_name1 = 'unet_5levels_augment_False_64top'
-    datasets = os.listdir('train_results')
 
     # wilx_compare_all()
+    net_name1 = 'unet_5False_64top'
+    datasets = os.listdir('train_results')
     # for dataset_name in datasets:
-    dataset_name = 'camus_csrad_150-0.1'
-    print(f'\n\n{dataset_name}')
-    eval_results = eval_test_set(net_name1, dataset_name)
-    with pd.option_context('precision', 3):
-        print('ED')
-        print(eval_results.xs('avg').xs('ED', axis=1))
-        print('\nES')
-        print(eval_results.xs('avg').xs('ES', axis=1))
+    dataset_name = 'camus_png'
 
+    check_predictions(net_name1, dataset_name, n_images=3)
+    # eval_results = val_folds(net_name1, dataset_name)
+    #
+    # # print(f'\n\n{dataset_name}')
+    # # eval_results = eval_test_set(net_name1, dataset_name)
+    # with pd.option_context('precision', 3):
+    #     print('ED')
+    #     print(eval_results.xs('avg').xs('ED', axis=1))
+    #     print('\nES')
+    #     print(eval_results.xs('avg').xs('ES', axis=1))
+    #
     # net_name2 = 'unet_5levels_augment_False_64top'
+    # dataset_name2 = 'camus_png'
     # wilcox_test(net_name1, net_name2, dataset_name, dataset_name)
