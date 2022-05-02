@@ -6,7 +6,7 @@ import json
 from tqdm import tqdm
 import dl.metrics
 import utils
-from unet_model import Unet, DwtDownsample, IDwtUpsample
+from unet_model import Unet, WaveletUnet
 import pandas as pd
 from torch.utils.data import DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -74,9 +74,9 @@ def train(optimizer, loss_func, train_loop, unet):
         # torch.onnx.export(unet, img, 'unet.onnx', input_names=input_names, output_names=output_names)
         optimizer.zero_grad()
         del data
-        with torch.cuda.amp.autocast():
-            output = unet(img)
-            loss = loss_func(output, gt)
+        # with torch.cuda.amp.autocast():
+        output = unet(img)
+        loss = loss_func(output, gt)
 
         loss.backward()
         optimizer.step()
@@ -151,14 +151,16 @@ if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 5,
-        'top_feature_ch': 64,
+        'levels': 4,
+        'top_feature_ch': 16,
         'output_ch': 4,
-        'pool_layer': DwtDownsample(),
-        'upsample_layer': lambda n_ch: IDwtUpsample(),
 
     }
-    unet = Unet(**unet_settings).cuda()
+    wavelet_unet = True
+    if wavelet_unet:
+        unet = WaveletUnet(**unet_settings).cuda()
+    else:
+        unet = Unet(**unet_settings).cuda()
 
     train_settings = {
         "epochs": 100,
@@ -186,7 +188,7 @@ if __name__ == '__main__':
 
     dataset = "camus_png"
     dataloader_settings = {
-        "batch_size": 8,
+        "batch_size": 2,
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
         "augments": False,
@@ -199,12 +201,13 @@ if __name__ == '__main__':
                 'dataloader_settings': dataloader_settings,
                 }
     # {dataloader_settings['augments']}
-    foldername = f"train_results/{dataset}/wavelet_unet_{unet_settings['levels']}" \
+    waveletstr = 'wavelet_' if wavelet_unet else ''
+    foldername = f"train_results/{dataset}/TEST{waveletstr}unet_{unet_settings['levels']}" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
-    print(f'Feature maps: {unet.channels}')
+    # print(f'Feature maps: {unet.channels}')
     os.makedirs(foldername, exist_ok=True)
     with open(f'{foldername}settings.json', 'w') as file:
         json.dump(settings, file, indent=2, default=utils.call_json_serializer)

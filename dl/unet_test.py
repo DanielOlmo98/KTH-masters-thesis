@@ -240,7 +240,7 @@ def wilx_compare_all():
 if __name__ == '__main__':
 
     # wilx_compare_all()
-    net_name1 = 'unet_5False_64top'
+    net_name1 = 'TESTwavelet_unet_4_augment_False_16top'
     datasets = os.listdir('train_results')
     # for dataset_name in datasets:
     dataset_name = 'camus_png'
