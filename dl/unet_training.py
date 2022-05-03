@@ -6,7 +6,8 @@ import json
 from tqdm import tqdm
 import dl.metrics
 import utils
-from unet_model import Unet, WaveletUnet
+from unet_model import Unet
+from wavelet_unet_model import WaveletUnet
 import pandas as pd
 from torch.utils.data import DataLoader, random_split, Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -154,9 +155,10 @@ if __name__ == '__main__':
         'levels': 4,
         'top_feature_ch': 16,
         'output_ch': 4,
+        'wavelet': True
 
     }
-    wavelet_unet = True
+    wavelet_unet = unet_settings['wavelet']
     if wavelet_unet:
         unet = WaveletUnet(**unet_settings).cuda()
     else:
@@ -202,7 +204,7 @@ if __name__ == '__main__':
                 }
     # {dataloader_settings['augments']}
     waveletstr = 'wavelet_' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/TEST{waveletstr}unet_{unet_settings['levels']}" \
+    foldername = f"train_results/{dataset}/{waveletstr}unet_{unet_settings['levels']}level" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)

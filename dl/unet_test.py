@@ -7,6 +7,7 @@ import json
 from dl.dataloader import KFoldValLoaders, CamusDatasetPNG
 import os
 from unet_model import Unet
+from wavelet_unet_model import WaveletUnet
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -14,9 +15,14 @@ import random
 import itertools
 
 
-def load_unet(filename, output_ch, levels, top_feature_ch):
-    saved_unet = Unet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
-    saved_unet.load_state_dict(torch.load(filename))
+def load_unet(filename, output_ch, levels, top_feature_ch, wavelet=False):
+    if wavelet:
+        saved_unet = WaveletUnet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
+        saved_unet.load_state_dict(torch.load(filename))
+    else:
+        saved_unet = Unet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
+        saved_unet.load_state_dict(torch.load(filename))
+
     return saved_unet.cuda()
 
 
@@ -238,7 +244,6 @@ def wilx_compare_all():
 
 
 if __name__ == '__main__':
-
     # wilx_compare_all()
     net_name1 = 'TESTwavelet_unet_4_augment_False_16top'
     datasets = os.listdir('train_results')
