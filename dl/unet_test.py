@@ -13,6 +13,7 @@ import numpy as np
 from scipy import stats
 import random
 import itertools
+import cv2
 
 
 def load_unet(filename, output_ch, levels, top_feature_ch, wavelet=False):
@@ -241,6 +242,35 @@ def wilx_compare_all():
         dataset2 = combination[1]
         print(f'\n\n\n{dataset1} and {dataset2}')
         wilcox_test(net_name1, net_name1, dataset1, dataset2)
+
+
+def scrap_volume(net_name, dataset_name):
+    path = f"train_results/{dataset_name}/{net_name}/"
+    test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
+    subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
+    checkpoint_path_list, settings = get_checkpoints_paths(path)
+    test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=False)
+    for checkpoint_path in checkpoint_path_list:
+        unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
+        unet.eval()
+        val_loader = iter(test_loader)
+        next_batch = next(val_loader)
+        n_classes = next_batch[1].size()[1]
+        try:
+            while True:
+                with torch.no_grad():
+                    img, seg, ED_or_ES = next_batch
+                    prediction = torch.softmax(unet(img), dim=1)
+
+                for i in range(img.shape[0]):
+                    for n in range(n_classes):
+                        pred = prediction[:, n, :, :]
+                        n_labels, labeled_img, a = cv2.connectedComponentsWithStats(pred, stats=cv2.CC_STAT_AREA)
+
+                next_batch = next(val_loader)
+
+        except StopIteration:
+            return
 
 
 if __name__ == '__main__':

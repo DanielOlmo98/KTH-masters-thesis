@@ -15,6 +15,11 @@ def eval_denoise(img, gt, dn_strength='strong'):
     dn_settings_dict = denoise.get_settings_dict(dn_strength)
     denoised_images = {}
     df_list = []
+
+    crop = 5
+    img = img[crop:-crop, crop:-crop]
+    gt = gt[crop:-crop, crop:-crop]
+
     psnr = peak_signal_noise_ratio(image_true=gt, image_test=img)
     mse = mean_squared_error(gt, img)
     ssim = structural_similarity(gt, img)

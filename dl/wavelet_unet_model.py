@@ -57,7 +57,7 @@ class WaveletContractingPath(nn.Module):
     def get_contracting_path(self, input_ch, top_features, levels):
         contracting_path_blocks = nn.ModuleList()
         contracting_path_blocks.append(
-            ConvBlock(input_ch, top_features)
+            ConvBlock(input_ch * 4, top_features)
         )
         print((input_ch, top_features))
         for level in range(levels - 1):
@@ -71,9 +71,9 @@ class WaveletContractingPath(nn.Module):
     def forward(self, x):
         features = []
         for block in self.contr_path_blocks:
+            x = self.pooling_layer(x)
             x = block(x)
             features.append(x)
-            x = self.pooling_layer(x)
         return features
 
 

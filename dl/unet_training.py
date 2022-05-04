@@ -219,7 +219,6 @@ if __name__ == '__main__':
     ''' TODO
         - speckle isolation
         - get rid of MSE or PSNR
-        - dice with each other
         - tv vs combined
         - center crop on denoise eval
         - check distribution on bayesshirnk and HMF
