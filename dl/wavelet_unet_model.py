@@ -25,8 +25,8 @@ class WaveletUnet(nn.Module):
                f'Output channels: {self.out_ch}'
 
     def forward(self, x):
-        features = self.contracting_path(x)
-        output = self.expanding_path(features[::-1][0], features[::-1][1:])  # reverse
+        x, features = self.contracting_path(x)
+        output = self.expanding_path(x, features[::-1])  # reverse
         output = self.end(output)
 
         return output
@@ -57,24 +57,22 @@ class WaveletContractingPath(nn.Module):
     def get_contracting_path(self, input_ch, top_features, levels):
         contracting_path_blocks = nn.ModuleList()
         contracting_path_blocks.append(
-            ConvBlock(input_ch * 4, top_features)
+            ConvBlock(input_ch, top_features)
         )
-        print((input_ch, top_features))
-        for level in range(levels - 1):
+        for level in range(levels - 2):
             top_features *= 4
             contracting_path_blocks.append(
                 ConvBlock(top_features, top_features)
             )
-            print((top_features, top_features))
         return contracting_path_blocks
 
     def forward(self, x):
         features = []
         for block in self.contr_path_blocks:
-            x = self.pooling_layer(x)
             x = block(x)
             features.append(x)
-        return features
+            x = self.pooling_layer(x)
+        return x, features
 
 
 class WaveletExpandingPath(nn.Module):
@@ -101,16 +99,19 @@ class WaveletExpandingPath(nn.Module):
             exp_path_blocks.append(
                 ConvBlock(top_features * 2, top_features)
             )
-            print((top_features * 2, top_features))
             top_features = top_features * 4
+        exp_path_blocks.append(
+            ConvBlock(top_features, top_features)
+        )
         return exp_path_blocks[::-1]
 
     def forward(self, x, features):
-        for i in range(len(self.exp_path_blocks)):
+        x = self.exp_path_blocks[0](x)
+        for i in range(len(self.exp_path_blocks[1:])):
             x = self.exp_path_upconv(x)
             feature_c = self._crop(x, features[i])
             x = torch.cat([x, feature_c], dim=1)
-            x = self.exp_path_blocks[i](x)
+            x = self.exp_path_blocks[i + 1](x)
         return x
 
     def _crop(self, x, features):

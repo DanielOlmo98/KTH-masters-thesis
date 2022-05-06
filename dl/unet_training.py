@@ -152,7 +152,7 @@ if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 4,
+        'levels': 3,
         'top_feature_ch': 16,
         'output_ch': 4,
         'wavelet': True
@@ -204,7 +204,7 @@ if __name__ == '__main__':
                 }
     # {dataloader_settings['augments']}
     waveletstr = 'wavelet_' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/{waveletstr}unet_{unet_settings['levels']}level" \
+    foldername = f"train_results/{dataset}/{waveletstr}testunet_{unet_settings['levels']}level" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
@@ -223,4 +223,5 @@ if __name__ == '__main__':
         - center crop on denoise eval
         - check distribution on bayesshirnk and HMF
         - scrap volume analysis
+            - scrap volume overlap with gt to determine if it is part
     '''

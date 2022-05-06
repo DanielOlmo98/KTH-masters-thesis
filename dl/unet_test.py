@@ -263,11 +263,22 @@ def scrap_volume(net_name, dataset_name):
                     prediction = torch.softmax(unet(img), dim=1)
 
                 for i in range(img.shape[0]):
-                    for n in range(n_classes):
-                        pred = prediction[:, n, :, :]
-                        n_labels, labeled_img, a = cv2.connectedComponentsWithStats(pred, stats=cv2.CC_STAT_AREA)
+                    for n in range(1, n_classes):
+                        pred = prediction[0, n, :, :].detach().cpu().numpy()
+                        pred = utils.binarize(pred)
+                        pred = (pred * 255).astype(np.uint8)
+                        n_vols, labeled_img, stats, centroids = cv2.connectedComponentsWithStats(pred,
+                                                                                                 stats=cv2.CC_STAT_AREA)
+                        scrap_areas = stats[:, -1]
+                        if n_vols > 2:
+                            total_scrap_area = scrap_areas[2]
+                            for i in range(2, n_vols):
+                                total_scrap_area += scrap_areas[i]
+                            percent_scrap_vol = (scrap_areas[2] / total_scrap_area) * 100
+                            utils.plot_image_g(img, labeled_img,
+                                               title=f'Class {n}, Scrap volumes: {n_vols - 2}, Scrap area: {percent_scrap_vol}%')
 
-                next_batch = next(val_loader)
+                    next_batch = next(val_loader)
 
         except StopIteration:
             return
@@ -275,12 +286,12 @@ def scrap_volume(net_name, dataset_name):
 
 if __name__ == '__main__':
     # wilx_compare_all()
-    net_name1 = 'TESTwavelet_unet_4_augment_False_16top'
+    net_name1 = 'unet_5levels_augment_False_64top'
     datasets = os.listdir('train_results')
     # for dataset_name in datasets:
-    dataset_name = 'camus_png'
-
-    check_predictions(net_name1, dataset_name, n_images=3)
+    dataset_name = 'camus_hmf'
+    scrap_volume(net_name1, dataset_name)
+    # check_predictions(net_name1, dataset_name, n_images=3)
     # eval_results = val_folds(net_name1, dataset_name)
     #
     # # print(f'\n\n{dataset_name}')

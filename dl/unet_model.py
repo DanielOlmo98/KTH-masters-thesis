@@ -56,7 +56,6 @@ class ExpandingPath(nn.Module):
     def get_expanding_path(self, upsample_layer):
         exp_path_upconv = nn.ModuleList()
         exp_path_blocks = nn.ModuleList()
-        print('expand')
         for n_channels in self.channels:
             exp_path_upconv.append(  # use lambda???
                 upsample_layer(n_channels)
