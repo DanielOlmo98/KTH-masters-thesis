@@ -33,7 +33,6 @@ class ContractingPath(nn.Module):
             contracting_path_blocks.append(
                 ConvBlock(input_ch, n_channels)
             )
-            print((input_ch, n_channels))
             input_ch = n_channels
         return contracting_path_blocks
 
@@ -63,7 +62,6 @@ class ExpandingPath(nn.Module):
             exp_path_blocks.append(
                 ConvBlock(n_channels * 2, n_channels)
             )
-            print((n_channels * 2, n_channels))
         return exp_path_upconv, exp_path_blocks
 
     def forward(self, x, features):

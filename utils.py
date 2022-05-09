@@ -64,11 +64,16 @@ def load_images(path=(get_project_root() + '/image/')):
     return images
 
 
-def plot_image_g(img, overlay_img=None, title=None, ax=None, cmap_overlay=None, alpha_overlay=0.2):
+def to_np_squeezed(img, dims=2):
     if isinstance(img, torch.Tensor):
         img = img.detach().cpu().numpy()
-        while img.ndim > 2:
+        while img.ndim > dims:
             img = img.squeeze()
+    return img
+
+
+def plot_image_g(img, overlay_img=None, title=None, ax=None, cmap_overlay=None, alpha_overlay=0.2):
+    img = to_np_squeezed(img, dims=2)
 
     if cmap_overlay is None:
         # cmap_overlay = ListedColormap([(0, 0, 0, 0), "red", "orange", "lime"])
@@ -91,13 +96,22 @@ def plot_image_g(img, overlay_img=None, title=None, ax=None, cmap_overlay=None, 
         return ax
 
 
-def plot_onehot_seg(img, seg, outline=None, alpha_overlay=0.2, title=None):
-    colors = ['none', 'gold', 'lime', 'blue', 'red']
+def plot_onehot_seg(img, seg, outline=None, alpha_overlay=0.2, title=None, colors=None, colors_outline=None):
+    img = to_np_squeezed(img, dims=2)
+    seg = to_np_squeezed(seg, dims=3)
+    if colors is None:
+        colors = ['none', 'gold', 'lime', 'blue', 'red']
+    if colors_outline is None:
+        colors_outline = ['none', 'gold', 'lime', 'blue', 'red']
+
     plt.imshow(img, cmap='gray')
     for n in range(seg.shape[0]):
         plt.imshow(seg[n], alpha=alpha_overlay, cmap=ListedColormap(['none', colors[n]]))
-        if outline is not None:
-            plt.imshow(get_outline(outline[n]), alpha=0.7, cmap=ListedColormap(['none', colors[n]]))
+
+    if outline is not None:
+        for n in range(outline.shape[0]):
+            outline = to_np_squeezed(outline, dims=3)
+            plt.imshow(get_outline(outline[n]), alpha=0.7, cmap=ListedColormap(['none', colors_outline[n]]))
 
     if title is not None:
         plt.title(title)

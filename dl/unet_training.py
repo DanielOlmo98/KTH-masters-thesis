@@ -7,6 +7,7 @@ from tqdm import tqdm
 import dl.metrics
 import utils
 from unet_model import Unet
+from old_wavelet_unet_model import OldWaveletUnet
 from wavelet_unet_model import WaveletUnet
 import pandas as pd
 from torch.utils.data import DataLoader, random_split, Subset
@@ -152,7 +153,7 @@ if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 3,
+        'levels': 4,
         'top_feature_ch': 16,
         'output_ch': 4,
         'wavelet': True
@@ -160,7 +161,7 @@ if __name__ == '__main__':
     }
     wavelet_unet = unet_settings['wavelet']
     if wavelet_unet:
-        unet = WaveletUnet(**unet_settings).cuda()
+        unet = OldWaveletUnet(**unet_settings).cuda()
     else:
         unet = Unet(**unet_settings).cuda()
 
@@ -224,4 +225,5 @@ if __name__ == '__main__':
         - check distribution on bayesshirnk and HMF
         - scrap volume analysis
             - scrap volume overlap with gt to determine if it is part
+        - check performance on high/low quality images for networks
     '''

@@ -14,6 +14,8 @@ from scipy import stats
 import random
 import itertools
 import cv2
+import torch
+from torch.nn.functional import one_hot
 
 
 def load_unet(filename, output_ch, levels, top_feature_ch, wavelet=False):
@@ -245,6 +247,10 @@ def wilx_compare_all():
 
 
 def scrap_volume(net_name, dataset_name):
+    """
+    Displays the image with segmentations that contain more than 1 volume per class, and calculates how large they
+    are relative to the target area.
+    """
     path = f"train_results/{dataset_name}/{net_name}/"
     test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
     subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
@@ -263,20 +269,39 @@ def scrap_volume(net_name, dataset_name):
                     prediction = torch.softmax(unet(img), dim=1)
 
                 for i in range(img.shape[0]):
-                    for n in range(1, n_classes):
+                    for n in range(3, n_classes):
                         pred = prediction[0, n, :, :].detach().cpu().numpy()
+                        class_seg = seg[0, n, :, :].detach().cpu().numpy()
                         pred = utils.binarize(pred)
                         pred = (pred * 255).astype(np.uint8)
                         n_vols, labeled_img, stats, centroids = cv2.connectedComponentsWithStats(pred,
                                                                                                  stats=cv2.CC_STAT_AREA)
-                        scrap_areas = stats[:, -1]
-                        if n_vols > 2:
-                            total_scrap_area = scrap_areas[2]
-                            for i in range(2, n_vols):
-                                total_scrap_area += scrap_areas[i]
-                            percent_scrap_vol = (scrap_areas[2] / total_scrap_area) * 100
-                            utils.plot_image_g(img, labeled_img,
-                                               title=f'Class {n}, Scrap volumes: {n_vols - 2}, Scrap area: {percent_scrap_vol}%')
+                        areas = stats[:, -1][1:]
+                        n_vols -= 1
+                        if n_vols > 1:
+                            labeled_img = one_hot(torch.tensor(labeled_img).type(torch.int64),
+                                                  num_classes=n_vols + 1).permute(2, 0, 1).numpy()[1:]
+
+                            flat_seg = class_seg.flatten()
+                            seg_vol = np.sum(flat_seg)
+                            total_scrap_area = 0
+                            del_indexes = []
+                            for n in range(n_vols):
+                                vol_area = labeled_img[n].flatten()
+                                union = np.sum(vol_area * flat_seg)
+                                if (union / seg_vol) < 0.4:
+                                    total_scrap_area += np.sum(vol_area)
+                                else:
+                                    del_indexes.append(n)
+                                    labeled_img = np.insert(labeled_img, 0, labeled_img[n], axis=0)
+                                    labeled_img = np.delete(labeled_img, n + 1, axis=0)
+                                    # labeled_img = np.moveaxis(labeled_img, n, 0)
+
+                            percent_scrap_vol = (total_scrap_area / np.sum(areas)) * 100
+                            utils.plot_onehot_seg(img, labeled_img, outline=seg[0, :, :, :],
+                                                  colors=['green', *['red'] * 5],
+                                                  title=f'Class {n}, Scrap volumes: {n_vols - 1}\n'
+                                                        f' Scrap area: {percent_scrap_vol:.2f}%')
 
                     next_batch = next(val_loader)
 
@@ -284,13 +309,57 @@ def scrap_volume(net_name, dataset_name):
             return
 
 
+def disp_bad_segs(net_name, dataset_name, score_threshold=0.7):
+    """
+    Displays segmentations with classes that have f1 scores under threshold.
+    """
+    path = f"train_results/{dataset_name}/{net_name}/"
+    test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
+    subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
+    checkpoint_path_list, settings = get_checkpoints_paths(path)
+    test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=False)
+    fold = 0
+    for checkpoint_path in checkpoint_path_list:
+        unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
+        unet.eval()
+        val_loader = iter(test_loader)
+        next_batch = next(val_loader)
+        n_classes = next_batch[1].size()[1]
+        try:
+            while True:
+                with torch.no_grad():
+                    img, seg, ED_or_ES = next_batch
+                    prediction = torch.softmax(unet(img), dim=1)
+
+                for i in range(img.shape[0]):
+                    for n in range(1, n_classes):
+                        pred = prediction[:, n, :, :]
+                        class_seg = seg[:, n, :, :]
+                        # pred = utils.binarize(pred)
+                        # pred = (pred * 255).astype(np.uint8)
+
+                        f1 = dl.metrics.get_f1_metrics(pred, class_seg, only_f1=True)
+                        if f1 < score_threshold:
+                            utils.plot_onehot_seg(img[0], prediction[0], outline=seg[0],
+                                                  title=f'Fold: {fold}, Class {n}, F1: {f1:.3f}')
+
+                next_batch = next(val_loader)
+
+        except StopIteration:
+            fold += 1
+            pass
+
+
 if __name__ == '__main__':
     # wilx_compare_all()
     net_name1 = 'unet_5levels_augment_False_64top'
     datasets = os.listdir('train_results')
     # for dataset_name in datasets:
-    dataset_name = 'camus_hmf'
-    scrap_volume(net_name1, dataset_name)
+    dataset_name = 'camus_wavelet_sigma0.15_bayes'
+
+    disp_bad_segs(net_name1, dataset_name, score_threshold=0.6)
+    # scrap_volume(net_name1, dataset_name)
+
     # check_predictions(net_name1, dataset_name, n_images=3)
     # eval_results = val_folds(net_name1, dataset_name)
     #
