@@ -7,7 +7,7 @@ from dl.unet_model import ConvBlock
 
 
 class OldWaveletUnet(nn.Module):
-    def __init__(self, input_ch=1, output_ch=2, top_feature_ch=8, levels=4, **kwargs):
+    def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4, **kwargs):
         super(OldWaveletUnet, self).__init__()
         self.out_ch = output_ch
         self.top_features = top_feature_ch

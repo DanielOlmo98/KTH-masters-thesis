@@ -69,7 +69,7 @@ def hmf_denoise(img):
 
 
 def get_settings_dict(denoise_strength='strong'):
-    if denoise_strength not in ['strong', 'weak']:
+    if denoise_strength not in ['strong', 'weak', 'strong2']:
         raise ValueError("Strength must be either 'strong' or 'weak'")
 
     denoise_settings = {
@@ -81,6 +81,17 @@ def get_settings_dict(denoise_strength='strong'):
             'SRAD': {'steps': 150, 'step_size': 0.05},
             # 'TV_CSRAD': {'steps': 150, 'step_size': 0.05, 'weight': 0.3},
             'Combined': {'steps': 50, 'step_size': 0.1, 'weight': 0.7, 'max_iter': 100, 'eps': 0.001},
+            'HMF': {'none': None}
+        },
+
+        'strong2': {
+            'VisuShrink': {'sigma': 0.015, 'mode': 'visu'},
+            'BayesShrink': {'sigma': 0.13, 'mode': 'bayes'},
+            'TV': {'weight': 0.6, 'max_iter': 250, 'eps': 0.001},
+            'CSRAD': {'steps': 150, 'step_size': 0.05},
+            'SRAD': {'steps': 150, 'step_size': 0.05},
+            # 'TV_CSRAD': {'steps': 150, 'step_size': 0.05, 'weight': 0.3},
+            'Combined': {'steps': 50, 'step_size': 0.001, 'weight': 0.9, 'max_iter': 100, 'eps': 0.005},
             'HMF': {'none': None}
         },
 

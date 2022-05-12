@@ -7,7 +7,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
+import torchvision
 from scipy.misc import face
+
+
+def center_crop(img, border_size):
+    return img[border_size:-border_size, border_size:-border_size]
 
 
 def eval_denoise(img, gt, dn_strength='strong'):
@@ -16,13 +21,13 @@ def eval_denoise(img, gt, dn_strength='strong'):
     denoised_images = {}
     df_list = []
 
-    crop = 5
-    img = img[crop:-crop, crop:-crop]
-    gt = gt[crop:-crop, crop:-crop]
+    border_crop_size = 16
+    gt = center_crop(gt, border_crop_size)
 
-    psnr = peak_signal_noise_ratio(image_true=gt, image_test=img)
-    mse = mean_squared_error(gt, img)
-    ssim = structural_similarity(gt, img)
+    noised_img_croped = center_crop(img, border_crop_size)
+    psnr = peak_signal_noise_ratio(image_true=gt, image_test=noised_img_croped)
+    mse = mean_squared_error(gt, noised_img_croped)
+    ssim = structural_similarity(gt, noised_img_croped)
     df_list.append(pd.DataFrame(
         data={'PSNR': psnr, 'MSE': mse, 'SSIM': ssim, 'Params': 'None'},
         index=['Noisy image']
@@ -30,9 +35,12 @@ def eval_denoise(img, gt, dn_strength='strong'):
     for method, dn_lambda in dn_lambda_dict.items():
         # print(method)
         dn_img = dn_lambda(img)[0:img.shape[0], 0:img.shape[1]]
-        dn_img = (dn_img - np.min(dn_img)) / (np.max(dn_img) - np.min(dn_img)).clip(1e-8)
+        dn_img = center_crop(dn_img, border_crop_size)
+
         # dn_img = utils.normalize_0_1(dn_img)
         denoised_images[method] = dn_img
+        dn_img = (dn_img - np.min(dn_img)) / (np.max(dn_img) - np.min(dn_img)).clip(1e-8)
+
         psnr = peak_signal_noise_ratio(image_true=gt, image_test=dn_img)
         mse = mean_squared_error(gt, dn_img)
         ssim = structural_similarity(gt, dn_img)
@@ -46,7 +54,8 @@ def eval_denoise(img, gt, dn_strength='strong'):
     #              {method: np.abs(gt - dn_image) for method, dn_image in denoised_images.items()},
     #              cmap='hot')
     eval_frame = pd.concat(df_list).rename_axis('Method')
-    return eval_frame.sort_values(by=['SSIM'], ascending=False)
+    return eval_frame
+    # return eval_frame.sort_values(by=['SSIM'], ascending=False)
 
 
 def plot_denoise(img, gt, denoised_images, cmap='gray', show_hist=False, bins=256):
@@ -131,11 +140,28 @@ def denoise_specklenoise(img, mean=0, var=0.06, dn_strength='weak'):
 if __name__ == '__main__':
     images = utils.load_images()
     img_size = (256, 256)
-    gt = cv2.resize(images[6], img_size, cv2.INTER_LINEAR)
-    img = cv2.resize(images[6], img_size, cv2.INTER_LINEAR)
+    gt = cv2.resize(images[8], img_size, cv2.INTER_LINEAR)
+    img = cv2.resize(images[8], img_size, cv2.INTER_LINEAR)
     mean, var = 0, 0.03
-    dn_strength = 'strong'
-    # eval_frame = denoise_specklenoise(img, mean=mean, var=var, dn_strength=dn_strength)
-    eval_frame = eval_denoise(img, gt, dn_strength)
-    print(eval_frame.loc[:, ['PSNR', 'MSE', 'SSIM']])
+    dn_strength = 'weak '
+
+    frame_list = []
+    for _ in range(10):
+        eval_frame = denoise_specklenoise(img, mean=mean, var=var, dn_strength=dn_strength)
+        # with pd.option_context('precision', 4):
+        #     print(eval_frame.loc[:, ['PSNR', 'MSE', 'SSIM']])
+        frame_list.append(eval_frame)
+
+    metrics = pd.concat(frame_list)
+    with pd.option_context('precision', 4):
+        print(metrics.mean(level=0))
+    with pd.option_context('precision', 3):
+        print(metrics.std(level=0))
+    # for idx, row in metrics.iterrows():
+    #     print(idx)
+    #     print(row)
+    #     # print(row.mean())
+    #     # print(row.std())
+
+    # eval_frame = eval_denoise(img, gt, dn_strength)
     # eval_frame.to_csv(f'denoise_eval_synthetic_lower_noise.csv')

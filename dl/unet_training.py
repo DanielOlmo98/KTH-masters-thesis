@@ -161,7 +161,7 @@ if __name__ == '__main__':
     }
     wavelet_unet = unet_settings['wavelet']
     if wavelet_unet:
-        unet = OldWaveletUnet(**unet_settings).cuda()
+        unet = WaveletUnet(**unet_settings).cuda()
     else:
         unet = Unet(**unet_settings).cuda()
 
@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
     dataset = "camus_png"
     dataloader_settings = {
-        "batch_size": 2,
+        "batch_size": 8,
         "split": 8,
         "dataset": CamusDatasetPNG(dataset=dataset),
         "augments": False,
@@ -205,7 +205,7 @@ if __name__ == '__main__':
                 }
     # {dataloader_settings['augments']}
     waveletstr = 'wavelet_' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/{waveletstr}testunet_{unet_settings['levels']}level" \
+    foldername = f"train_results/{dataset}/{waveletstr}newunet_{unet_settings['levels']}level" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
@@ -226,4 +226,7 @@ if __name__ == '__main__':
         - scrap volume analysis
             - scrap volume overlap with gt to determine if it is part
         - check performance on high/low quality images for networks
+        - calc psnr of noise aug
+        - scores histogram
+        - boxplot LA
     '''
