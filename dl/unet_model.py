@@ -93,9 +93,11 @@ class Unet(nn.Module):
         self.end = nn.Conv2d(self.channels[0], self.out_ch, kernel_size=(1, 1), padding='same')
 
     def __str__(self):
+        total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         return f'Unet:\n    ' \
                f'Levels: {self.channels.size()[0]}\n    ' \
                f'Features per level: {self.channels}\n    ' \
+               f'Trainable parameters: {total_params}' \
                f'Pooling layer: {self.pooling_layer}\n    ' \
                f'Output channels: {self.out_ch}'
 

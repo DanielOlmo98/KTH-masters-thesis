@@ -19,9 +19,11 @@ class OldWaveletUnet(nn.Module):
         self.end = nn.Conv2d(top_feature_ch, self.out_ch, kernel_size=(1, 1), padding='same')
 
     def __str__(self):
-        return f'Unet:\n    ' \
+        total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        return f'Old wavelet Unet:\n    ' \
                f'Levels: {self.levels}\n    ' \
                f'Top features: {self.top_features} \n' \
+               f'Trainable parameters: {total_params}' \
                f'Output channels: {self.out_ch}'
 
     def forward(self, x):

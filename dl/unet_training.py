@@ -165,12 +165,14 @@ if __name__ == '__main__':
     else:
         unet = Unet(**unet_settings).cuda()
 
+    pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
+    unet_settings['trainable_params'] = pytorch_total_params
     train_settings = {
         "epochs": 100,
         "do_val": True,
         "loss_func": dl.metrics.FscoreLoss(class_weights=torch.tensor([0.01, 1, 1, 1], device='cuda:0'),
                                            f1_weight=0.7),
-        "optimizer": optim.Adam(unet.parameters(), lr=1e-5, weight_decay=1e-4),
+        "optimizer": optim.Adam(unet.parameters(), lr=5e-5, weight_decay=1e-4),
     }
 
     aug_settings = {
@@ -205,10 +207,9 @@ if __name__ == '__main__':
                 }
     # {dataloader_settings['augments']}
     waveletstr = 'wavelet_' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/{waveletstr}newunet_{unet_settings['levels']}level" \
+    foldername = f"train_results/{dataset}/test{waveletstr}newunet_{unet_settings['levels']}level" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
-    pytorch_total_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     print(f'Trainable parameters: {pytorch_total_params}')
     # print(f'Feature maps: {unet.channels}')
     os.makedirs(foldername, exist_ok=True)
