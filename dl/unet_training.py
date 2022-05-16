@@ -153,8 +153,8 @@ if __name__ == '__main__':
     # unet = load_unet(filename, channels=n_ch, levels=levels)
 
     unet_settings = {
-        'levels': 4,
-        'top_feature_ch': 16,
+        'levels': 5,
+        'top_feature_ch': 32,
         'output_ch': 4,
         'wavelet': True
 

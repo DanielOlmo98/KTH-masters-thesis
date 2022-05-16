@@ -262,9 +262,11 @@ def scrap_volume(net_name, dataset_name):
         val_loader = iter(test_loader)
         next_batch = next(val_loader)
         n_classes = next_batch[1].size()[1]
+        img_number = 0
         try:
             while True:
                 with torch.no_grad():
+                    img_number = + 1
                     img, seg, ED_or_ES = next_batch
                     prediction = torch.softmax(unet(img), dim=1)
 
@@ -300,7 +302,7 @@ def scrap_volume(net_name, dataset_name):
                             percent_scrap_vol = (total_scrap_area / np.sum(areas)) * 100
                             utils.plot_onehot_seg(img, labeled_img, outline=seg[0, :, :, :],
                                                   colors=['green', *['red'] * 5],
-                                                  title=f'Class {n}, Scrap volumes: {n_vols - 1}\n'
+                                                  title=f'Img: {img_number}, Class {n}, Scrap volumes: {n_vols - 1}\n'
                                                         f' Scrap area: {percent_scrap_vol:.2f}%')
 
                     next_batch = next(val_loader)
@@ -309,7 +311,7 @@ def scrap_volume(net_name, dataset_name):
             return
 
 
-def disp_bad_segs(net_name, dataset_name, score_threshold=0.7):
+def disp_bad_segs(net_name, dataset_name, score_threshold=0.7, worse_than_thresh=True, seg_class=None):
     """
     Displays segmentations with classes that have f1 scores under threshold.
     """
@@ -333,15 +335,27 @@ def disp_bad_segs(net_name, dataset_name, score_threshold=0.7):
 
                 for i in range(img.shape[0]):
                     for n in range(1, n_classes):
+
+                        if seg_class:
+                            n = seg_class
+
                         pred = prediction[:, n, :, :]
                         class_seg = seg[:, n, :, :]
                         # pred = utils.binarize(pred)
                         # pred = (pred * 255).astype(np.uint8)
 
                         f1 = dl.metrics.get_f1_metrics(pred, class_seg, only_f1=True)
-                        if f1 < score_threshold:
-                            utils.plot_onehot_seg(img[0], prediction[0], outline=seg[0],
+
+                        display = f1 < score_threshold
+                        if not worse_than_thresh:
+                            display = not display
+
+                        if display:
+                            utils.plot_onehot_seg(img[0], prediction[0], outline=seg[0], alpha_overlay=0.1,
                                                   title=f'Fold: {fold}, Class {n}, F1: {f1:.3f}')
+
+                        if seg_class:
+                            break
 
                 next_batch = next(val_loader)
 
@@ -355,9 +369,9 @@ if __name__ == '__main__':
     net_name1 = 'unet_5levels_augment_False_64top'
     datasets = os.listdir('train_results')
     # for dataset_name in datasets:
-    dataset_name = 'camus_wavelet_sigma0.15_bayes'
+    dataset_name = 'camus_png'
 
-    disp_bad_segs(net_name1, dataset_name, score_threshold=0.6)
+    disp_bad_segs(net_name1, dataset_name, score_threshold=0.9, worse_than_thresh=False, seg_class=3)
     # scrap_volume(net_name1, dataset_name)
 
     # check_predictions(net_name1, dataset_name, n_images=3)
