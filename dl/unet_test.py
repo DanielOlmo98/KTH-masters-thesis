@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import tensorflow_estimator.python.estimator.early_stopping
 import torch
 import utils
@@ -18,7 +19,7 @@ import torch
 from torch.nn.functional import one_hot
 
 
-def load_unet(filename, output_ch, levels, top_feature_ch, wavelet=False):
+def load_unet(filename, output_ch, levels, top_feature_ch, wavelet=False, trainable_params=None):
     if wavelet:
         saved_unet = WaveletUnet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
         saved_unet.load_state_dict(torch.load(filename))
@@ -149,11 +150,29 @@ def check_predictions(net_name, dataset_name, n_images=1):
             # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
+def predict_image(net_name, dataset_name, img):
+    img = cv2.resize(img, (256, 256), cv2.INTER_LINEAR)
+    img = utils.normalize_0_1(img.astype(np.float32))
+    img = torch.tensor(img, device='cuda', dtype=torch.float)
+    img = torch.unsqueeze(img, dim=0)
+    img = torch.unsqueeze(img, dim=0)
+    path = f"train_results/{dataset_name}/{net_name}/"
+    checkpoint_path_list, settings = get_checkpoints_paths(path)
+    unet = load_unet(path + checkpoint_path_list[0], **settings['unet_settings'])
+    unet.eval()
+    with torch.no_grad():
+        prediction = unet(img)
+        prediction = torch.softmax(prediction, dim=1)
+        prediction = (prediction > 0.5).float().squeeze(dim=0)
+        prediction = prediction.cpu().detach().numpy()
+        utils.plot_onehot_seg(img, prediction, title=f'{dataset_name}, {net_name}')
+
+
 def get_checkpoints_paths(path):
     checkpoint_paths = [path for path in os.listdir(path) if '.pt' in path]
     with open(f'{path}settings.json', 'r') as file:
         settings = json.load(file)
-    return checkpoint_paths, settings
+        return checkpoint_paths, settings
 
 
 def val_folds(net_name, dataset_name):
@@ -186,40 +205,35 @@ def eval_test_set(net_name, dataset_name):
     return save_metrics(f'{path}test_', test_metrics)
 
 
+def get_ED_ES_list_test(net_name, dataset_name):
+    ED, ES = [[], [], []], [[], [], []]
+    path = f"train_results/{dataset_name}/{net_name}/"
+    test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
+    subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
+    checkpoint_path_list, settings = get_checkpoints_paths(path)
+    test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=False)
+    for checkpoint_path in checkpoint_path_list:
+        unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
+        ES_list, ED_list = evaluate_unet(unet, test_loader, only_f1=True)
+        for i in range(1, 4):  # skip the background class
+            ES[i - 1].append(ES_list[i])
+            ED[i - 1].append(ED_list[i])
+    return ED, ES
+
+
+def average_folds(f1_scores):
+    f1_scores = torch.tensor(f1_scores)
+    averaged_scores = [[] for _ in range(f1_scores.shape[0])]  # one list per class
+    for i in range(f1_scores.shape[-1]):
+        for j in range(f1_scores.shape[0]):
+            averaged_scores[j].append(torch.mean(f1_scores[j, :, i]).item())
+
+    return averaged_scores
+
+
 def wilcox_test(net_name1, net_name2, dataset_name1, dataset_name2):
-    """
-    TEST
-    """
-
-    ED1, ES1 = [[], [], []], [[], [], []]
-    ED2, ES2 = [[], [], []], [[], [], []]
-
-    def fill_ED_ES_lists(net_name, dataset_name, ED, ES):
-        path = f"train_results/{dataset_name}/{net_name}/"
-        test_set = CamusDatasetPNG(dataset=f'{dataset_name}_test')
-        subset = dl.dataloader.MySubset(test_set, indices=list(range(len(test_set))), transformer=None)
-        checkpoint_path_list, settings = get_checkpoints_paths(path)
-        test_loader = dl.dataloader.DataLoader(subset, batch_size=1, shuffle=False)
-        for checkpoint_path in checkpoint_path_list:
-            unet = load_unet(path + checkpoint_path, **settings['unet_settings'])
-            ES_list, ED_list = evaluate_unet(unet, test_loader, only_f1=True)
-            for i in range(1, 4):  # skip the background class
-                # [ES[i-1].append(f1.item()) for f1 in ES_list[i]]
-                # [ED[i-1].append(f1.item()) for f1 in ED_list[i]]
-                ES[i - 1].append(ES_list[i])
-                ED[i - 1].append(ED_list[i])
-
-    def average_folds(f1_scores):
-        f1_scores = torch.tensor(f1_scores)
-        averaged_scores = [[] for _ in range(f1_scores.shape[0])]  # one list per class
-        for i in range(f1_scores.shape[-1]):
-            for j in range(f1_scores.shape[0]):
-                averaged_scores[j].append(torch.mean(f1_scores[j, :, i]).item())
-
-        return averaged_scores
-
-    fill_ED_ES_lists(net_name1, dataset_name1, ED1, ES1)
-    fill_ED_ES_lists(net_name2, dataset_name2, ED2, ES2)
+    ED1, ES1 = get_ED_ES_list_test(net_name1, dataset_name1)
+    ED2, ES2 = get_ED_ES_list_test(net_name2, dataset_name2)
 
     ED1 = average_folds(ED1)
     ED2 = average_folds(ED2)
@@ -364,26 +378,61 @@ def disp_bad_segs(net_name, dataset_name, score_threshold=0.7, worse_than_thresh
             pass
 
 
-if __name__ == '__main__':
-    # wilx_compare_all()
-    net_name1 = 'unet_5levels_augment_False_64top'
-    datasets = os.listdir('train_results')
-    # for dataset_name in datasets:
-    dataset_name = 'camus_png'
+def score_boxplots(net_name1, dataset_name1, net_name2=None, dataset_name2=None):
+    ED1, ES1 = get_ED_ES_list_test(net_name1, dataset_name1)
+    ED1 = average_folds(ED1)
+    ES1 = average_folds(ES1)
 
-    disp_bad_segs(net_name1, dataset_name, score_threshold=0.9, worse_than_thresh=False, seg_class=3)
+    if net_name2 is not None and dataset_name2 is not None:
+        ED2, ES2 = get_ED_ES_list_test(net_name2, dataset_name2)
+        ED2 = average_folds(ED2)
+        ES2 = average_folds(ES2)
+    else:
+        ED2 = None
+        ES2 = None
+
+    fig, (ax_ED, ax_ES) = plt.subplots(1, 2)
+    ax_ED.set_ylabel('F1 Score')
+    ax_ED = utils.boxplots(ax_ED, [ED1, ED2], title=f'End Dyastole (ED)')
+    ax_ES = utils.boxplots(ax_ES, [ES1, ES2], title=f'End Systole (ES)')
+    # ax_ES.set_ylabel('F1 Score')
+    plt.show()
+
+
+if __name__ == '__main__':
+    net_name1 = 'testwavelet_newunet_5level_augment_False_32top'
+    net_name2 = 'unet_5levels_augment_False_64top'
+    dataset_png = 'camus_png'
+    dataset_hmf = 'camus_hmf'
+    dataset_bayes = 'camus_wavelet_sigma0.15_bayes'
+
+    score_boxplots(net_name2, dataset_bayes, net_name2, dataset_hmf)
+
+    # wilx_compare_all()
+    # datasets = os.listdir('train_results')
+    # # for dataset_name in datasets:
+    #
+    # disp_bad_segs(net_name1, dataset_name, score_threshold=0.9, worse_than_thresh=False, seg_class=3)
+    #
+    # imgs = utils.load_images()
+    # img = imgs[-1]
+    # predict_image(net_name1, dataset_name, img)
+
     # scrap_volume(net_name1, dataset_name)
 
     # check_predictions(net_name1, dataset_name, n_images=3)
     # eval_results = val_folds(net_name1, dataset_name)
     #
     # # print(f'\n\n{dataset_name}')
-    # # eval_results = eval_test_set(net_name1, dataset_name)
+
+    # eval_results = eval_test_set(net_name1, dataset_name)
+    # eval_results = val_folds(net_name1, dataset_name)
     # with pd.option_context('precision', 3):
     #     print('ED')
     #     print(eval_results.xs('avg').xs('ED', axis=1))
     #     print('\nES')
     #     print(eval_results.xs('avg').xs('ES', axis=1))
+
     #
     # net_name2 = 'unet_5levels_augment_False_64top'
     # dataset_name2 = 'camus_png'
