@@ -191,7 +191,7 @@ if __name__ == '__main__':
     # transformer = [A.GaussNoise(p=1., var_limit=(10, 50)), A.pytorch.ToTensorV2()]
     # transformer = A.Compose(transformer)
 
-    dataset = "camus_png"
+    dataset = "camus_combined_50-0.1_w0.7_eps0.001"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
@@ -207,7 +207,7 @@ if __name__ == '__main__':
                 }
     # {dataloader_settings['augments']}
     waveletstr = 'wavelet_' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/test{waveletstr}newunet_{unet_settings['levels']}level" \
+    foldername = f"train_results/{dataset}/{waveletstr}newunet_{unet_settings['levels']}level" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     print(f'Trainable parameters: {pytorch_total_params}')

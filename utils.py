@@ -232,7 +232,7 @@ def plot_losses(train_losses, val_losses, show=True, filename=None, title='Losse
         plt.show()
 
 
-def boxplots(ax, data_list, title=None):
+def boxplots(ax, data_list, colors, title=None):
     def set_box_color(bp, color):
         plt.setp(bp['boxes'], color=color)
         plt.setp(bp['whiskers'], color=color)
@@ -243,23 +243,20 @@ def boxplots(ax, data_list, title=None):
     if title:
         ax.set_title(title)
 
-    ax.set_ylim(0.3, 1)
+    ax.set_ylim(0.35, 1)
     if len(data_list) == 1:
         ax.boxplot(data_list)
         plt.show()
         return ax
 
-    colors = ['red', 'blue', 'green']
-
     j = 1
-    for data_groups in zip(data_list):
+    for data_groups in zip(*data_list):
         for i, data in enumerate(data_groups):
-            bp = ax.boxplot(data, positions=[j, j + i, j + i + 1], widths=0.6)
+            bp = ax.boxplot(data, positions=[j + i], widths=0.6, sym=colors[i])
             set_box_color(bp, colors[i])
+            # ax.legend(bp)
         j += len(data_list) + 1
 
-
-    # ax.set_xticklabels(['', 'LV endo', '', 'LV epi', '', 'LA'])
     return ax
 
 

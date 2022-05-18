@@ -17,6 +17,7 @@ import itertools
 import cv2
 import torch
 from torch.nn.functional import one_hot
+import matplotlib.patches as mpatches
 
 
 def load_unet(filename, output_ch, levels, top_feature_ch, wavelet=False, trainable_params=None):
@@ -378,24 +379,34 @@ def disp_bad_segs(net_name, dataset_name, score_threshold=0.7, worse_than_thresh
             pass
 
 
-def score_boxplots(net_name1, dataset_name1, net_name2=None, dataset_name2=None):
-    ED1, ES1 = get_ED_ES_list_test(net_name1, dataset_name1)
-    ED1 = average_folds(ED1)
-    ES1 = average_folds(ES1)
+def score_boxplots(net_names, dataset_names, colors=None, legend_names=None):
+    ED = []
+    ES = []
+    for net_name, dataset_name in zip(net_names, dataset_names):
+        ED_temp, ES_temp = get_ED_ES_list_test(net_name, dataset_name)
+        ED.append(average_folds(ED_temp))
+        ES.append(average_folds(ES_temp))
+    print([x for x in range(1, len(ED) * (len(ED[0])), len(ED))])
+    if colors is None:
+        colors = ['red', 'blue', 'green', 'orange', 'black']
 
-    if net_name2 is not None and dataset_name2 is not None:
-        ED2, ES2 = get_ED_ES_list_test(net_name2, dataset_name2)
-        ED2 = average_folds(ED2)
-        ES2 = average_folds(ES2)
-    else:
-        ED2 = None
-        ES2 = None
-
-    fig, (ax_ED, ax_ES) = plt.subplots(1, 2)
+    fig, (ax_ED, ax_ES) = plt.subplots(1, 2, figsize=(10, 5), dpi=220)
     ax_ED.set_ylabel('F1 Score')
-    ax_ED = utils.boxplots(ax_ED, [ED1, ED2], title=f'End Dyastole (ED)')
-    ax_ES = utils.boxplots(ax_ES, [ES1, ES2], title=f'End Systole (ES)')
+    ax_ED = utils.boxplots(ax_ED, ED, colors, title=f'End Dyastole (ED)')
+    ax_ES = utils.boxplots(ax_ES, ES, colors, title=f'End Systole (ES)')
     # ax_ES.set_ylabel('F1 Score')
+
+    if legend_names is not None:
+        handles = []
+        for i, name in enumerate(legend_names):
+            handles.append(mpatches.Patch(color=colors[i], label=name))
+
+        ax_ED.legend(handles=handles, loc='lower left')
+    ax_ED.set_xticks([x + 1 for x in range(1, len(ED) * (len(ED[0]) + 1), len(ED) + 1)])
+    ax_ED.set_xticklabels(['LV endo', 'LV epi', 'LA'])
+    ax_ES.set_xticks([x + 1 for x in range(1, len(ES) * (len(ES[0]) + 1), len(ES) + 1)])
+    ax_ES.set_xticklabels(['LV endo', 'LV epi', 'LA'])
+
     plt.show()
 
 
@@ -406,7 +417,9 @@ if __name__ == '__main__':
     dataset_hmf = 'camus_hmf'
     dataset_bayes = 'camus_wavelet_sigma0.15_bayes'
 
-    score_boxplots(net_name2, dataset_bayes, net_name2, dataset_hmf)
+    legend_names = ['Standard', 'HMF', 'BayesShrink']
+    score_boxplots([net_name2, net_name2, net_name2], [dataset_png, dataset_bayes, dataset_hmf],
+                   legend_names=legend_names)
 
     # wilx_compare_all()
     # datasets = os.listdir('train_results')
