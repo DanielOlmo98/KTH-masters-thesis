@@ -7,6 +7,9 @@ from unet_model import ConvBlock
 
 
 class WaveletUnet(nn.Module):
+    """
+    This Wavelet Unet halves the number of feature channels at each convolution block.
+    """
     def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4, **kwargs):
         super(WaveletUnet, self).__init__()
         self.out_ch = output_ch
@@ -23,7 +26,7 @@ class WaveletUnet(nn.Module):
         return f'New wavelet Unet:\n    ' \
                f'Levels: {self.levels}\n    ' \
                f'Top features: {self.top_features} \n' \
-               f'Trainable parameters: {total_params}' \
+               f'Trainable parameters: {total_params}\n' \
                f'Output channels: {self.out_ch}'
 
     def forward(self, x):

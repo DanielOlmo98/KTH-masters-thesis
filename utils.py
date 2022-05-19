@@ -64,14 +64,6 @@ def load_images(path=(get_project_root() + '/image/')):
     return images
 
 
-def to_np_squeezed(img, dims=2):
-    if isinstance(img, torch.Tensor):
-        img = img.detach().cpu().numpy()
-        while img.ndim > dims:
-            img = img.squeeze()
-    return img
-
-
 def plot_image_g(img, overlay_img=None, title=None, ax=None, cmap_overlay=None, alpha_overlay=0.2):
     img = to_np_squeezed(img, dims=2)
 
@@ -117,6 +109,14 @@ def plot_onehot_seg(img, seg, outline=None, alpha_overlay=0.2, title=None, color
         plt.title(title)
     plt.show()
     return
+
+
+def to_np_squeezed(img, dims=2):
+    if isinstance(img, torch.Tensor):
+        img = img.detach().cpu().numpy()
+        while img.ndim > dims:
+            img = img.squeeze()
+    return img
 
 
 def get_outline(seg):
@@ -181,40 +181,6 @@ def load_patient(patient='0001', CH=2, ED_or_ES='ED', png=False, rotate=False, d
 def get_example_img(png=True):
     img = load_patient(png=png)[0]
     return img
-
-
-def slice_view_3d(volume):
-    # not working
-    class IndexTracker:
-        def __init__(self, ax, X):
-            self.ax = ax
-            ax.set_title('use scroll wheel to navigate images')
-
-            self.X = X
-            rows, cols, self.slices = X.shape
-            self.ind = self.slices // 2
-
-            self.im = ax.imshow(self.X[:, :, self.ind])
-            self.update()
-
-        def on_scroll(self, event):
-            print("%s %s" % (event.button, event.step))
-            if event.button == 'up':
-                self.ind = (self.ind + 1) % self.slices
-            else:
-                self.ind = (self.ind - 1) % self.slices
-            self.update()
-
-        def update(self):
-            self.im.set_data(self.X[:, :, self.ind])
-            self.ax.set_ylabel('slice %s' % self.ind)
-            self.im.axes.figure.canvas.draw()
-
-    fig, ax = plt.subplots(1, 1)
-    fig.canvas.mpl_connect('scroll_event', IndexTracker(ax, volume).on_scroll)
-    plt.show()
-
-    return
 
 
 def plot_losses(train_losses, val_losses, show=True, filename=None, title='Losses'):

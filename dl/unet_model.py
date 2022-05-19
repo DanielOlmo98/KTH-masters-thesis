@@ -97,7 +97,7 @@ class Unet(nn.Module):
         return f'Unet:\n    ' \
                f'Levels: {self.channels.size()[0]}\n    ' \
                f'Features per level: {self.channels}\n    ' \
-               f'Trainable parameters: {total_params}' \
+               f'Trainable parameters: {total_params}\n' \
                f'Pooling layer: {self.pooling_layer}\n    ' \
                f'Output channels: {self.out_ch}'
 

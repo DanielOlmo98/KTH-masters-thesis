@@ -78,6 +78,9 @@ def average_indvidual_metrics(metric_lists_ES, metric_lists_ED, val_metrics):
 
 
 def save_metrics(savename, val_metrics_ES_and_ED):
+    """
+    Saves metrics toa csv file.
+    """
     m_frames = []
     for val_metrics in val_metrics_ES_and_ED.values():
         fold_arrays = []
@@ -119,6 +122,9 @@ def calc_metric_folds_avgs(metrics_frame, metrics_name):
 
 
 def check_predictions(net_name, dataset_name, n_images=1):
+    """
+    Plots the predicted segmentation as an overlay to the image and the ground truth as an outline.
+    """
     path = f"train_results/{dataset_name}/{net_name}/"
     checkpoint_path_list, settings = get_checkpoints_paths(path)
     val_loaders = KFoldValLoaders(CamusDatasetPNG(dataset_name), split=8)
@@ -138,8 +144,6 @@ def check_predictions(net_name, dataset_name, n_images=1):
             prediction = prediction.cpu().detach().numpy()
             img = img.cpu().detach().squeeze(dim=0).squeeze(dim=0).numpy()
             seg = seg.cpu().detach().squeeze(dim=0).numpy().astype('float32')
-            # utils.plot_onehot_seg(img, seg, title='Ground Truth')
-            # utils.plot_onehot_seg(img, prediction, title='Prediction')
             utils.plot_onehot_seg(img, prediction, outline=seg, title=f'{dataset_name}, {net_name}')
             ''' Legend:
             green: overlap
@@ -151,7 +155,10 @@ def check_predictions(net_name, dataset_name, n_images=1):
             # utils.plot_image_g(np.abs(seg - prediction[0]), title='Difference')
 
 
-def predict_image(net_name, dataset_name, img):
+def plot_image_prediction(net_name, dataset_name, img):
+    """
+    Plots predicted segmentation as an overlay on the image.
+    """
     img = cv2.resize(img, (256, 256), cv2.INTER_LINEAR)
     img = utils.normalize_0_1(img.astype(np.float32))
     img = torch.tensor(img, device='cuda', dtype=torch.float)
@@ -394,7 +401,6 @@ def score_boxplots(net_names, dataset_names, colors=None, legend_names=None):
     ax_ED.set_ylabel('F1 Score')
     ax_ED = utils.boxplots(ax_ED, ED, colors, title=f'End Dyastole (ED)')
     ax_ES = utils.boxplots(ax_ES, ES, colors, title=f'End Systole (ES)')
-    # ax_ES.set_ylabel('F1 Score')
 
     if legend_names is not None:
         handles = []
@@ -402,6 +408,7 @@ def score_boxplots(net_names, dataset_names, colors=None, legend_names=None):
             handles.append(mpatches.Patch(color=colors[i], label=name))
 
         ax_ED.legend(handles=handles, loc='lower left')
+
     ax_ED.set_xticks([x + 1 for x in range(1, len(ED) * (len(ED[0]) + 1), len(ED) + 1)])
     ax_ED.set_xticklabels(['LV endo', 'LV epi', 'LA'])
     ax_ES.set_xticks([x + 1 for x in range(1, len(ES) * (len(ES[0]) + 1), len(ES) + 1)])

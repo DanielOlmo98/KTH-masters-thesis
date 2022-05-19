@@ -79,10 +79,9 @@ class MySubset(Dataset):
     threads enabled, when an element is requested and returned its index will be put in a queue so that the element
     is augmented again. The elements in the queues will be augmented in parallel in another thread.
 
-    To wait for the queues to finish augmenting use the 'join()'.
+    To wait for the queues to finish augmenting after an epoch use the method 'join_queues()'.
     """
 
-    # todo update this documentation
     def __init__(self, dataset, indices, transformer=None, n_aug_threads=0):
         """
         :param dataset: Dataset that returns images and segmentations as numpy arrays. Image intensity must be in the
@@ -281,8 +280,8 @@ def get_loaders(batch_size, dataset, train_indices, val_indices):
 
 class DataAugmentation(nn.Module):
     """
-    Kornia augmentation class, unused as elastic transforms don't seem to work on CUDA tensors so albumentations is a
-    better alternative.
+    Kornia augmentation class, unused as elastic transforms don't seem to work on
+     CUDA tensors so albumentations is used instead.
     """
 
     def __init__(self):
@@ -306,6 +305,7 @@ class DataAugmentation(nn.Module):
 
 class CamusDataset(Dataset):
     """
+    OLD
     Dataset class that uses the original .mhd files from the dataset.
     It will resize the files from disk and augment them as requested.
     """

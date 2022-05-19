@@ -7,6 +7,9 @@ from dl.unet_model import ConvBlock
 
 
 class OldWaveletUnet(nn.Module):
+    """
+    This Wavelet Unet keeps the same amount of channels in the convolution block.
+    """
     def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4, **kwargs):
         super(OldWaveletUnet, self).__init__()
         self.out_ch = output_ch
@@ -23,7 +26,7 @@ class OldWaveletUnet(nn.Module):
         return f'Old wavelet Unet:\n    ' \
                f'Levels: {self.levels}\n    ' \
                f'Top features: {self.top_features} \n' \
-               f'Trainable parameters: {total_params}' \
+               f'Trainable parameters: {total_params}\n' \
                f'Output channels: {self.out_ch}'
 
     def forward(self, x):

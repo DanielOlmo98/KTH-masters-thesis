@@ -219,15 +219,7 @@ if __name__ == '__main__':
     kfold_train_unet(unet, foldername, **settings)
 
     ''' TODO
-        - speckle isolation
-        - get rid of MSE or PSNR
         - tv vs combined
-        - center crop on denoise eval
-        - check distribution on bayesshirnk and HMF
-        - scrap volume analysis
-            - scrap volume overlap with gt to determine if it is part
         - check performance on high/low quality images for networks
         - calc psnr of noise aug
-        - scores histogram
-        - boxplot LA
     '''
