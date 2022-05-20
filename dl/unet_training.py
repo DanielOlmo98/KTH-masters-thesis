@@ -154,14 +154,14 @@ if __name__ == '__main__':
 
     unet_settings = {
         'levels': 5,
-        'top_feature_ch': 32,
+        'top_feature_ch': 8,
         'output_ch': 4,
         'wavelet': True
 
     }
     wavelet_unet = unet_settings['wavelet']
     if wavelet_unet:
-        unet = WaveletUnet(**unet_settings).cuda()
+        unet = OldWaveletUnet(**unet_settings).cuda()
     else:
         unet = Unet(**unet_settings).cuda()
 
@@ -207,7 +207,7 @@ if __name__ == '__main__':
                 }
     # {dataloader_settings['augments']}
     waveletstr = 'wavelet_' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/{waveletstr}newunet_{unet_settings['levels']}level" \
+    foldername = f"train_results/{dataset}/{waveletstr}oldunet_{unet_settings['levels']}level" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     print(f'Trainable parameters: {pytorch_total_params}')

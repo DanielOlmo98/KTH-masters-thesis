@@ -252,9 +252,9 @@ def wilcox_test(net_name1, net_name2, dataset_name1, dataset_name2):
         EDwil = stats.wilcoxon(ED1[nclass], ED2[nclass])
         ESwil = stats.wilcoxon(ES1[nclass], ES2[nclass])
         if EDwil.pvalue > 0.01:
-            print(f'ED class {nclass + 1} pvalue: {EDwil.pvalue}')
+            print(f'ED class {nclass + 1} pvalue: {EDwil.pvalue:.4f}  statistic: {EDwil.statistic}')
         if ESwil.pvalue > 0.01:
-            print(f'ES class {nclass + 1} pvalue: {ESwil.pvalue}')
+            print(f'ES class {nclass + 1} pvalue: {ESwil.pvalue:.4f}  statistic: {ESwil.statistic}')
 
 
 def wilx_compare_all():
@@ -387,6 +387,11 @@ def disp_bad_segs(net_name, dataset_name, score_threshold=0.7, worse_than_thresh
 
 
 def score_boxplots(net_names, dataset_names, colors=None, legend_names=None):
+    """
+    Creates grouped box plots of the scores of each class of test set predictions of networks given by lists of net_names and dataset_names.
+    :param net_names: List of network folder names
+    :param dataset_names: List of dataset folder names
+    """
     ED = []
     ES = []
     for net_name, dataset_name in zip(net_names, dataset_names):
@@ -419,14 +424,17 @@ def score_boxplots(net_names, dataset_names, colors=None, legend_names=None):
 
 if __name__ == '__main__':
     net_name1 = 'testwavelet_newunet_5level_augment_False_32top'
-    net_name2 = 'unet_5levels_augment_False_64top'
+    net_5_64 = 'unet_5levels_augment_False_64top'
+    net_noise_aug = 'unet_5levels_augment_noise_64top'
+    net_newwav = 'wavelet_newunet_5level_augment_False_32top'
     dataset_png = 'camus_png'
     dataset_hmf = 'camus_hmf'
     dataset_bayes = 'camus_wavelet_sigma0.15_bayes'
+    dataset_combined = 'camus_combined_50-0.1_w0.7_eps0.001'
 
-    legend_names = ['Standard', 'HMF', 'BayesShrink']
-    score_boxplots([net_name2, net_name2, net_name2], [dataset_png, dataset_bayes, dataset_hmf],
-                   legend_names=legend_names)
+    # legend_names = ['Standard', 'HMF', 'BayesShrink']
+    # score_boxplots([net_5_64, net_noise_aug], [dataset_combined, dataset_combined],
+    #                legend_names=legend_names)
 
     # wilx_compare_all()
     # datasets = os.listdir('train_results')
@@ -445,15 +453,15 @@ if __name__ == '__main__':
     #
     # # print(f'\n\n{dataset_name}')
 
-    # eval_results = eval_test_set(net_name1, dataset_name)
-    # eval_results = val_folds(net_name1, dataset_name)
+    # eval_results = eval_test_set(net_newwav, dataset_combined)
+    # eval_results = val_folds(net_newwav, dataset_combined)
     # with pd.option_context('precision', 3):
     #     print('ED')
     #     print(eval_results.xs('avg').xs('ED', axis=1))
     #     print('\nES')
     #     print(eval_results.xs('avg').xs('ES', axis=1))
-
+    #
     #
     # net_name2 = 'unet_5levels_augment_False_64top'
     # dataset_name2 = 'camus_png'
-    # wilcox_test(net_name1, net_name2, dataset_name, dataset_name)
+    wilcox_test(net_5_64, net_newwav, dataset_png, dataset_combined)

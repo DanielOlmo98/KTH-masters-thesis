@@ -76,12 +76,12 @@ class WaveletContractingPath(nn.Module):
     def forward(self, x):
         features = []
         for block in self.contr_path_blocks:
-            print(f'down in: {x.shape[1]}')
+            # print(f'down in: {x.shape[1]}')
             x = block(x)
             features.append(x)
-            print(f'down conv: {x.shape[1]}')
+            # print(f'down conv: {x.shape[1]}')
             x = self.pooling_layer(x)
-            print(f'down pool: {x.shape[1]}')
+            # print(f'down pool: {x.shape[1]}')
         return features
 
 
@@ -116,12 +116,12 @@ class WaveletExpandingPath(nn.Module):
     def forward(self, x, features):
         for i in range(len(self.exp_path_blocks)):
             x = self.exp_path_upconv(x)
-            print(f'up in: {x.shape[1]}')
+            # print(f'up in: {x.shape[1]}')
             feature_c = self._crop(x, features[i])
             x = torch.cat([x, feature_c], dim=1)
-            print(f'up cat: {x.shape[1]}')
+            # print(f'up cat: {x.shape[1]}')
             x = self.exp_path_blocks[i](x)
-            print(f'up conv: {x.shape[1]}')
+            # print(f'up conv: {x.shape[1]}')
         return x
 
     def _crop(self, x, features):
