@@ -149,9 +149,7 @@ def full_train_unet(unet, foldername, train_settings, dataloader_settings, **kwa
     train_loop(unet, train_loader, val_loader=None, savename=f'{foldername}full_dataset', **train_settings)
 
 
-if __name__ == '__main__':
-    # unet = load_unet(filename, channels=n_ch, levels=levels)
-
+def kfold_train(dataset='camus_png'):
     unet_settings = {
         'levels': 5,
         'top_feature_ch': 8,
@@ -159,6 +157,7 @@ if __name__ == '__main__':
         'wavelet': True
 
     }
+
     wavelet_unet = unet_settings['wavelet']
     if wavelet_unet:
         unet = OldWaveletUnet(**unet_settings).cuda()
@@ -191,7 +190,6 @@ if __name__ == '__main__':
     # transformer = [A.GaussNoise(p=1., var_limit=(10, 50)), A.pytorch.ToTensorV2()]
     # transformer = A.Compose(transformer)
 
-    dataset = "camus_combined_50-0.1_w0.7_eps0.001"
     dataloader_settings = {
         "batch_size": 8,
         "split": 8,
@@ -217,6 +215,10 @@ if __name__ == '__main__':
         json.dump(settings, file, indent=2, default=utils.call_json_serializer)
 
     kfold_train_unet(unet, foldername, **settings)
+
+
+if __name__ == '__main__':
+    kfold_train(dataset="camus_combined_50-0.1_w0.7_eps0.001")
 
     ''' TODO
         - tv vs combined
