@@ -209,7 +209,7 @@ def kfold_train(dataset='camus_png'):
                 }
     # {dataloader_settings['augments']}
     waveletstr = f'wavelet_{wavelet_unet}' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/{waveletstr}uaaanet_{unet_settings['levels']}levels" \
+    foldername = f"train_results/{dataset}/{waveletstr}_unet_{unet_settings['levels']}levels" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     print(f'Trainable parameters: {pytorch_total_params}')
