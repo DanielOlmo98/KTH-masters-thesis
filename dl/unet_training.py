@@ -152,15 +152,19 @@ def full_train_unet(unet, foldername, train_settings, dataloader_settings, **kwa
 def kfold_train(dataset='camus_png'):
     unet_settings = {
         'levels': 5,
-        'top_feature_ch': 8,
+        'top_feature_ch': 16,
         'output_ch': 4,
-        'wavelet': True
+        'wavelet': False
+
 
     }
 
     wavelet_unet = unet_settings['wavelet']
     if wavelet_unet:
-        unet = OldWaveletUnet(**unet_settings).cuda()
+        if wavelet_unet == 'same':
+            unet = OldWaveletUnet(**unet_settings).cuda()
+        elif wavelet_unet == 'decrease':
+            unet = WaveletUnet(**unet_settings).cuda()
     else:
         unet = Unet(**unet_settings).cuda()
 
@@ -204,8 +208,8 @@ def kfold_train(dataset='camus_png'):
                 'dataloader_settings': dataloader_settings,
                 }
     # {dataloader_settings['augments']}
-    waveletstr = 'wavelet_' if wavelet_unet else ''
-    foldername = f"train_results/{dataset}/{waveletstr}oldunet_{unet_settings['levels']}level" \
+    waveletstr = f'wavelet_{wavelet_unet}' if wavelet_unet else ''
+    foldername = f"train_results/{dataset}/{waveletstr}uaaanet_{unet_settings['levels']}levels" \
                  f"_augment_{dataloader_settings['augments']}" \
                  f"_{unet_settings['top_feature_ch']}top/"
     print(f'Trainable parameters: {pytorch_total_params}')

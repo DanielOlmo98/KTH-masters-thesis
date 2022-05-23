@@ -9,6 +9,7 @@ from dl.dataloader import KFoldValLoaders, CamusDatasetPNG
 import os
 from unet_model import Unet
 from wavelet_unet_model import WaveletUnet
+from old_wavelet_unet_model import OldWaveletUnet
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -20,10 +21,14 @@ from torch.nn.functional import one_hot
 import matplotlib.patches as mpatches
 
 
-def load_unet(filename, output_ch, levels, top_feature_ch, wavelet=False, trainable_params=None):
+def load_unet(filename, output_ch, levels, top_feature_ch, trainable_params=None, wavelet=None):
     if wavelet:
-        saved_unet = WaveletUnet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
-        saved_unet.load_state_dict(torch.load(filename))
+        if wavelet == 'same':
+            saved_unet = OldWaveletUnet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
+            saved_unet.load_state_dict(torch.load(filename))
+        elif wavelet == 'decrease':
+            saved_unet = WaveletUnet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
+            saved_unet.load_state_dict(torch.load(filename))
     else:
         saved_unet = Unet(output_ch=output_ch, levels=levels, top_feature_ch=top_feature_ch)
         saved_unet.load_state_dict(torch.load(filename))
@@ -240,6 +245,7 @@ def average_folds(f1_scores):
 
 
 def wilcox_test(net_name1, net_name2, dataset_name1, dataset_name2):
+    print(f'\n\n\n{dataset_name1}, {net_name1} and {dataset_name2}, {net_name2}')
     ED1, ES1 = get_ED_ES_list_test(net_name1, dataset_name1)
     ED2, ES2 = get_ED_ES_list_test(net_name2, dataset_name2)
 
@@ -264,7 +270,7 @@ def wilx_compare_all():
     for combination in itertools.combinations(datasets, 2):
         dataset1 = combination[0]
         dataset2 = combination[1]
-        print(f'\n\n\n{dataset1} and {dataset2}')
+        # print(f'\n\n\n{dataset1} and {dataset2}')
         wilcox_test(net_name1, net_name1, dataset1, dataset2)
 
 
@@ -423,17 +429,20 @@ def score_boxplots(net_names, dataset_names, colors=None, legend_names=None):
 
 
 if __name__ == '__main__':
-    net_name1 = 'testwavelet_newunet_5level_augment_False_32top'
+    net_name1 = 'testwavelet_newunet_5levels_augment_False_32top'
     net_5_64 = 'unet_5levels_augment_False_64top'
+    net_5_16 = 'unet_5levels_augment_False_16top'
     net_noise_aug = 'unet_5levels_augment_noise_64top'
-    net_newwav = 'wavelet_newunet_5level_augment_False_32top'
+    net_newwav = 'wavelet_newunet_5levels_augment_False_32top'
+    net_wavsame = 'wavelet_oldunet_5levels_augment_False_8top'
     dataset_png = 'camus_png'
     dataset_hmf = 'camus_hmf'
     dataset_bayes = 'camus_wavelet_sigma0.15_bayes'
     dataset_combined = 'camus_combined_50-0.1_w0.7_eps0.001'
 
-    # legend_names = ['Standard', 'HMF', 'BayesShrink']
-    # score_boxplots([net_5_64, net_noise_aug], [dataset_combined, dataset_combined],
+    # legend_names = ['Baseline Standard', 'Baseline Combined', 'Wavelet decrease standard', 'Wavelet decrease Combined']
+    # score_boxplots([net_5_64, net_5_64, net_newwav, net_newwav],
+    #                [dataset_png, dataset_combined, dataset_png, dataset_combined],
     #                legend_names=legend_names)
 
     # wilx_compare_all()
@@ -453,8 +462,9 @@ if __name__ == '__main__':
     #
     # # print(f'\n\n{dataset_name}')
 
-    # eval_results = eval_test_set(net_newwav, dataset_combined)
-    # eval_results = val_folds(net_newwav, dataset_combined)
+
+    # eval_results = eval_test_set(net_5_16, dataset_combined)
+    # # eval_results = val_folds(net_5_16, dataset_combined)
     # with pd.option_context('precision', 3):
     #     print('ED')
     #     print(eval_results.xs('avg').xs('ED', axis=1))
@@ -464,4 +474,7 @@ if __name__ == '__main__':
     #
     # net_name2 = 'unet_5levels_augment_False_64top'
     # dataset_name2 = 'camus_png'
-    wilcox_test(net_5_64, net_newwav, dataset_png, dataset_combined)
+    wilcox_test(net_5_64, net_5_16, dataset_png, dataset_combined)
+    # wilcox_test(net_5_64, net_wavsame, dataset_png, dataset_png)
+    # wilcox_test(net_5_64, net_newwav, dataset_png, dataset_combined)
+    # wilcox_test(net_5_64, net_noise_aug, dataset_png, dataset_combined)

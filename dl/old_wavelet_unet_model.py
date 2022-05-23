@@ -10,6 +10,7 @@ class OldWaveletUnet(nn.Module):
     """
     This Wavelet Unet keeps the same amount of channels in the convolution block.
     """
+
     def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4, **kwargs):
         super(OldWaveletUnet, self).__init__()
         self.out_ch = output_ch
@@ -64,13 +65,11 @@ class WaveletContractingPath(nn.Module):
         contracting_path_blocks.append(
             ConvBlock(input_ch, top_features)
         )
-        print((input_ch, top_features))
         for level in range(levels - 1):
             top_features *= 4
             contracting_path_blocks.append(
                 ConvBlock(top_features, top_features)
             )
-            print((top_features, top_features))
         return contracting_path_blocks
 
     def forward(self, x):
@@ -109,7 +108,6 @@ class WaveletExpandingPath(nn.Module):
             exp_path_blocks.append(
                 ConvBlock(top_features * 2, top_features)
             )
-            print((top_features * 2, top_features))
             top_features = top_features * 4
         return exp_path_blocks[::-1]
 
