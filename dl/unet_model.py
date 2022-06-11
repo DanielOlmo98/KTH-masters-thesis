@@ -56,7 +56,7 @@ class ExpandingPath(nn.Module):
         exp_path_upconv = nn.ModuleList()
         exp_path_blocks = nn.ModuleList()
         for n_channels in self.channels:
-            exp_path_upconv.append(  # use lambda???
+            exp_path_upconv.append(
                 upsample_layer(n_channels)
             )
             exp_path_blocks.append(
@@ -109,9 +109,14 @@ class Unet(nn.Module):
         return output
 
     def reset_params(self):
-        for layer in self.children():
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
+        def weight_reset(m: nn.Module):
+            # - check if the current module has reset_parameters & if it's callabed called it on m
+            reset_parameters = getattr(m, "reset_parameters", None)
+            if callable(reset_parameters):
+                m.reset_parameters()
+
+        # Applies fn recursively to every submodule see: https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+        self.apply(fn=weight_reset)
 
 
 import unittest
@@ -139,14 +144,3 @@ class UnetTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    # unet_settings = {
-    #     'levels': 3,
-    #     'top_feature_ch': 16,
-    #     'output_ch': 1
-    # }
-    # model = Unet(**unet_settings)
-    # x = torch.randn((4, 1, 256, 256)).type(torch.float32)
-    # y = model(x)
-    # input_names = ['img']
-    # output_names = ['seg']
-    # torch.onnx.export(model, x, 'unet.onnx', input_names=input_names, output_names=output_names)

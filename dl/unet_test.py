@@ -440,27 +440,18 @@ if __name__ == '__main__':
     dataset_bayes = 'camus_wavelet_sigma0.15_bayes'
     dataset_combined = 'camus_combined_50-0.1_w0.7_eps0.001'
 
-    # legend_names = ['Baseline Standard', 'Baseline Combined', 'Wavelet decrease standard', 'Wavelet decrease Combined']
-    # score_boxplots([net_5_64, net_5_64, net_newwav, net_newwav],
-    #                [dataset_png, dataset_combined, dataset_png, dataset_combined],
-    #                legend_names=legend_names)
+    legend_names = ['Baseline Standard', 'Baseline Combined', 'Wavelet decrease standard', 'Wavelet decrease Combined']
+    score_boxplots([net_5_64, net_5_64, net_newwav, net_newwav],
+                   [dataset_png, dataset_combined, dataset_png, dataset_combined],
+                   legend_names=legend_names)
 
-    # wilx_compare_all()
-    # datasets = os.listdir('train_results')
-    # # for dataset_name in datasets:
-    #
-    # disp_bad_segs(net_name1, dataset_name, score_threshold=0.9, worse_than_thresh=False, seg_class=3)
-    #
-    # imgs = utils.load_images()
-    # img = imgs[-1]
-    # predict_image(net_name1, dataset_name, img)
+    disp_bad_segs(net_name1, dataset_png, score_threshold=0.7, worse_than_thresh=False, seg_class=3)
+    imgs = utils.load_images()
+    img = imgs[-1]
 
-    # scrap_volume(net_name1, dataset_name)
+    scrap_volume(net_name1, dataset_png)
 
-    # check_predictions(net_name1, dataset_name, n_images=3)
-    # eval_results = val_folds(net_name1, dataset_name)
-    #
-    # # print(f'\n\n{dataset_name}')
+    check_predictions(net_name1, dataset_png, n_images=3)
 
     eval_results = eval_test_set(net_5_16, dataset_combined)
     with pd.option_context('precision', 3):
@@ -474,11 +465,5 @@ if __name__ == '__main__':
         print(eval_results.xs('avg').xs('ED', axis=1))
         print('\nES')
         print(eval_results.xs('avg').xs('ES', axis=1))
-    #
-    #
-    # net_name2 = 'unet_5levels_augment_False_64top'
-    # dataset_name2 = 'camus_png'
-    # wilcox_test(net_5_64, net_noise_aug, dataset_png, dataset_combined)
-    # wilcox_test(net_5_64, net_wavsame, dataset_png, dataset_png)
-    # wilcox_test(net_5_64, net_newwav, dataset_png, dataset_combined)
-    # wilcox_test(net_5_64, net_noise_aug, dataset_png, dataset_combined)
+
+    wilcox_test(net_5_16, net_5_16, dataset_png, dataset_hmf)

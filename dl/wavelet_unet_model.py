@@ -10,6 +10,7 @@ class WaveletUnet(nn.Module):
     """
     This Wavelet Unet halves the number of feature channels at each convolution block.
     """
+
     def __init__(self, input_ch=1, output_ch=2, top_feature_ch=32, levels=4, **kwargs):
         super(WaveletUnet, self).__init__()
         self.out_ch = output_ch
@@ -37,9 +38,14 @@ class WaveletUnet(nn.Module):
         return output
 
     def reset_params(self):
-        for layer in self.children():
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
+        def weight_reset(m: nn.Module):
+            # - check if the current module has reset_parameters & if it's callabed called it on m
+            reset_parameters = getattr(m, "reset_parameters", None)
+            if callable(reset_parameters):
+                m.reset_parameters()
+
+        # Applies fn recursively to every submodule see: https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+        self.apply(fn=weight_reset)
 
 
 class WaveletContractingPath(nn.Module):

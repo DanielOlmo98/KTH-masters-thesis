@@ -190,12 +190,3 @@ if __name__ == '__main__':
         psnr_list.append(augment_noise_eval(img))
 
     print(f'PSNR average: {np.average(psnr_list)}')
-
-    # for idx, row in metrics.iterrows():
-    #     print(idx)
-    #     print(row)
-    #     # print(row.mean())
-    #     # print(row.std())
-
-    # eval_frame = eval_denoise(img, gt, dn_strength)
-    # eval_frame.to_csv(f'denoise_eval_synthetic_lower_noise.csv')

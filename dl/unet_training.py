@@ -139,23 +139,12 @@ def kfold_train_unet(unet, foldername, train_settings, dataloader_settings, **kw
         torch.cuda.empty_cache()
 
 
-def full_train_unet(unet, foldername, train_settings, dataloader_settings, **kwargs):
-    if dataloader_settings['augments'] is True:
-        dataloader_settings['augments'] = get_transforms(**aug_settings)
-    else:
-        dataloader_settings['augments'] = None
-
-    train_loader = get_full_dataset_loader(**dataloader_settings)
-    train_loop(unet, train_loader, val_loader=None, savename=f'{foldername}full_dataset', **train_settings)
-
-
 def kfold_train(dataset='camus_png'):
     unet_settings = {
         'levels': 5,
         'top_feature_ch': 16,
         'output_ch': 4,
         'wavelet': False
-
 
     }
 
@@ -223,9 +212,3 @@ def kfold_train(dataset='camus_png'):
 
 if __name__ == '__main__':
     kfold_train(dataset="camus_combined_50-0.1_w0.7_eps0.001")
-
-    ''' TODO
-        - tv vs combined
-        - check performance on high/low quality images for networks
-        - calc psnr of noise aug
-    '''
